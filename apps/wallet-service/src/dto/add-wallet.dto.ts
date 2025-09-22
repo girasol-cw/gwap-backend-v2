@@ -26,7 +26,7 @@ export class AddWalletResponseDto {
     email: string;
     accountId: string;
     userId: string
-    address: string;
-    createdChainIds: string[]
+    address: string[];
+
     errorChainIds: string[]
 }

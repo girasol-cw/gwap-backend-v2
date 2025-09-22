@@ -27,13 +27,9 @@ export class WalletServiceController {
 
   @Get('wallet/:userId')
   async getWallet(@Param('userId') userId: string): Promise<AddWalletResponseDto> {
-    const wallet = await this.walletService.getWalletByUserId(userId);
+  
 
-    if (!wallet) {
-      throw new NotFoundException(`Wallet not found for userId: ${userId}`);
-    }
-
-    return wallet;
+    return new AddWalletResponseDto();
   }
 
   @Get('metrics')

@@ -15,13 +15,13 @@
     "test:e2e": "jest --config ./jest-e2e.json",
     "start:api": "nest start api",
     "start:wallet-service": "nest start wallet-service",
-    "start:deposit-listener": "nest start deposit-listener",
+    "start:deposit": "nest start deposit",
     "start:dev:api": "nest start api --watch",
     "start:dev:wallet-service": "nest start wallet-service --watch",
-    "start:dev:deposit-listener": "nest start deposit-listener --watch",
+    "start:dev:deposit": "nest start deposit --watch",
     "build:api": "nest build api",
     "build:wallet-service": "nest build wallet-service",
-    "build:deposit-listener": "nest build deposit-listener"
+    "build:deposit": "nest build deposit"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.0",

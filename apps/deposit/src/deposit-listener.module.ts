@@ -6,12 +6,13 @@ import { DatabaseService } from '../../api/src/common/database.service';
 import { HttpModule } from '@nestjs/axios';
 import { DepositListenerController } from './deposit-fetcher.controller';
 import { TokenSweeperService } from './token-sweep/token-sweep.service';
+import { OrderController } from './order.controller';
 
 @Module({
   imports: [
     HttpModule,
   ],
-  controllers: [DepositListenerController],
+  controllers: [DepositListenerController,OrderController],
   providers: [
     DatabaseService,
     DepositFetcherService,
@@ -25,4 +26,4 @@ import { TokenSweeperService } from './token-sweep/token-sweep.service';
     DepositSenderService,
   ],
 })
-export class DepositListenerModule { }
+export class DepositModule { }
