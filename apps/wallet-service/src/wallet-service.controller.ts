@@ -1,23 +1,38 @@
-import { Controller, Post, Body, BadRequestException, Get, NotFoundException, Param, Header } from '@nestjs/common';
-import { WalletService } from './src/wallet-service.service';
+import {
+  Controller,
+  Post,
+  Body,
+  BadRequestException,
+  Get,
+  Param,
+  Header,
+} from '@nestjs/common';
+
 import { AddWalletRequestDto } from './dto/add-wallet.dto';
 import { AddWalletResponseDto } from './dto/add-wallet.dto';
 import { globalRegistry, MetricsService } from './metrics.service';
+import { TokenLiriumServiceAbstract } from 'libs/shared';
 
 @Controller()
 export class WalletServiceController {
-  constructor(private readonly walletService: WalletService, private readonly metricsService: MetricsService) { }
+  constructor(
+    private readonly tokenService: TokenLiriumServiceAbstract,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   @Post('addWallet')
   async addWallet(
-    @Body() body: AddWalletRequestDto
+    @Body() body: AddWalletRequestDto,
   ): Promise<{ message: string; data: AddWalletResponseDto }> {
     const { email = null, accountId = null, userId = null } = body;
 
     try {
-      let result:any;
+      let result: any;
       return {
-        message: result.address == null || result.errorChainIds.length > 0 ? 'Warning' : 'Success',
+        message:
+          result.address == null || result.errorChainIds.length > 0
+            ? 'Warning'
+            : 'Success',
         data: result,
       };
     } catch (error) {
@@ -26,8 +41,11 @@ export class WalletServiceController {
   }
 
   @Get('wallet/:userId')
-  async getWallet(@Param('userId') userId: string): Promise<AddWalletResponseDto> {
-  
+  async getWallet(
+    @Param('userId') userId: string,
+  ): Promise<AddWalletResponseDto> {
+    const token = await this.tokenService.getToken();
+    console.log(token);
 
     return new AddWalletResponseDto();
   }
@@ -37,6 +55,4 @@ export class WalletServiceController {
   async getMetrics(): Promise<string> {
     return this.metricsService.getMetrics();
   }
-
-
 }
