@@ -2,25 +2,47 @@
 CREATE TABLE users (
   user_id TEXT PRIMARY KEY,
   girasol_account_id TEXT NOT NULL,
-  email TEXT NOT NULL
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status text null,
+  label text null,
+  first_name text NOT NULL,
+  middle_name text null,
+  last_name TEXT NOT NULL,
+  date_of_birth date NOT NULL,
+  national_id_country text NOT NULL,
+  national_id_type text NOT NULL,
+  national_id text NOT NULL,
+  citizenship text NOT NULL,
+  address_line1 text NOT NULL,
+  address_line2 text null,
+  city text NOT NULL,
+  state text NOT NULL,
+  country text NOT NULL,
+  zip_code text NOT NULL,
+  tax_id text NULL,
+  tax_country text NULL,
+  cellphone text NOT NULL,
+  email TEXT NOT NULL,
+  customer JSONB Null
 );
 
 -- wallets
 CREATE TABLE wallets (
+  id TEXT NOT NULL PRIMARY KEY,
   user_id TEXT NOT NULL,
   deposit_addr TEXT NOT NULL,
   network TEXT NOT NULL,
-  currency TEXT NOT NULL,
-  asset_type TEXT NOT NULL,
+  currency TEXT NULL,
+  asset_type TEXT NULL,
 
-  PRIMARY KEY (deposit_addr, network),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- deposits
 CREATE TABLE deposits (
-  user_id TEXT NOT NULL,
-  order_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,.
+  wallet_id TEXT NOT NULL,
+  order_id TEXT NOT NULL, --todo must be null???
   deposit_addr TEXT NOT NULL,
   erc20_amount TEXT NOT NULL,
   network TEXT NOT NULL,
@@ -28,16 +50,16 @@ CREATE TABLE deposits (
   amount_usd TEXT NOT NULL,
   PRIMARY KEY (order_id),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-  FOREIGN KEY (deposit_addr) REFERENCES wallets(deposit_addr) ON DELETE CASCADE
+  FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
 );
 
 CREATE TABLE requests (
   id TEXT NOT NULL,
   verb TEXT NOT NULL,
   path TEXT NOT NULL,
-  body TEXT  NULL,
-  response_body TEXT  NULL,
-  error text null,
+  body JSONB  NULL,
+  response_body JSONB  NULL,
+  error JSONB null,
   status_code TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)

@@ -6,48 +6,56 @@ import {
   Get,
   Param,
   Header,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { AddWalletRequestDto } from './dto/add-wallet.dto';
 import { AddWalletResponseDto } from './dto/add-wallet.dto';
 import { globalRegistry, MetricsService } from './metrics.service';
-import { TokenLiriumServiceAbstract } from 'libs/shared';
+import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { GetWalletsService } from './src/get-wallets.service';
 
 @Controller()
 export class WalletServiceController {
   constructor(
-    private readonly tokenService: TokenLiriumServiceAbstract,
+    private readonly liriumRequestService: LiriumRequestServiceAbstract,
     private readonly metricsService: MetricsService,
+    private readonly getWalletsService: GetWalletsService,
   ) {}
 
   @Post('addWallet')
   async addWallet(
     @Body() body: AddWalletRequestDto,
   ): Promise<{ message: string; data: AddWalletResponseDto }> {
-    const { email = null, accountId = null, userId = null } = body;
-
     try {
-      let result: any;
+      const result = await this.liriumRequestService.createCustomer(body);
+
       return {
-        message:
-          result.address == null || result.errorChainIds.length > 0
-            ? 'Warning'
-            : 'Success',
+        message: result.address == null || result.address.length === 0 ? 'Warning' : 'Success',
         data: result,
       };
     } catch (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException(error);
     }
   }
 
   @Get('wallet/:userId')
   async getWallet(
     @Param('userId') userId: string,
-  ): Promise<AddWalletResponseDto> {
-    const token = await this.tokenService.getToken();
-    console.log(token);
+  ): Promise<{ message: string; data: AddWalletResponseDto }> {
+    try {
+      const result = await this.getWalletsService.getWallets(userId);
+      return {
+        message: result.address == null || result.address.length === 0 ? 'Warning' : 'Success',
+        data: result,
+      };
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        throw new NotFoundException(`user with id ${userId} not found`);
+      }
 
-    return new AddWalletResponseDto();
+      throw new BadRequestException(error);
+    }
   }
 
   @Get('metrics')

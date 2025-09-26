@@ -34,7 +34,6 @@ export class TokenLiriumService extends TokenLiriumServiceAbstract {
     const now = Math.floor(Date.now() / 1000);
 
     if (this.token && now < this.expireAt) {
-      console.log('Token is still valid');
       return { token: this.token };
     }
     const payload: Record<string, number | string> = {

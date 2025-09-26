@@ -5,3 +5,6 @@ export * from './src/services/lirium-request.service';
 export * from './src/services/http-wrapper.service';
 export * from './src/dto/token.dto';
 export * from './src/dto/lirium-error.dto';
+export * from './src/services/database.service';
+export * from './src/dto/lirium-request.dto';
+export * from './src/dto/request-log.dto';

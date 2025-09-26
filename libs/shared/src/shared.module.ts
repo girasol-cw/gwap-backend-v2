@@ -9,6 +9,7 @@ import {
   LiriumRequestService,
 } from './services/lirium-request.service';
 import { HttpWrapperService } from './services/http-wrapper.service';
+import { DatabaseService } from './services/database.service';
 
 const tokenLiriumProvider: Provider = {
   provide: TokenLiriumServiceAbstract,
@@ -23,7 +24,7 @@ const liriumRequestProvider: Provider = {
 @Global()
 @Module({
   imports: [HttpModule],
-  providers: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService],
-  exports: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService],
+  providers: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService],
+  exports: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService],
 })
 export class SharedModule {}

@@ -7,7 +7,7 @@ export class AddWalletRequestDto {
   firstName: string;
   middleName?: string;
   lastName: string;
-  date_of_birth: string;
+  birthDate: string;
   nationalIdCountryIso2: string;
   nationalIdType: string;
   nationalId: string;
@@ -21,14 +21,22 @@ export class AddWalletRequestDto {
   taxId?: string;
   taxCountryIso2?: string;
   cellphone: string;
+  name?: string;
 }
 export class AddWalletResponseDto {
   email: string;
   accountId: string;
   userId: string;
-  address: string[];
-
+  address: walletDto[];
+  
   errorChainIds: string[];
+}
+
+export class walletDto {
+  address: string;
+  network: string;
+  currency: string;
+  asset_type: string;
 }
 
 export class ErrorResponseDto {

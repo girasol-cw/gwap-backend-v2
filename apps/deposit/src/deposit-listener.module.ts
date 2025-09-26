@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DatabaseService } from '../../api/src/common/database.service';
+import { DatabaseService } from '../../../libs/shared/src/services/database.service';
 import { OrderController } from './order.controller';
 import { CustomerController } from './customer.controller';
 import { SharedModule } from 'libs/shared';
@@ -9,6 +9,6 @@ import { DepositListenerController } from './deposit-listener.controller';
   imports: [SharedModule],
   controllers: [OrderController, CustomerController, DepositListenerController],
   providers: [DatabaseService],
-  exports: [DatabaseService],
+  exports: [],
 })
 export class DepositModule {}

@@ -4,6 +4,9 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { TokenLiriumServiceAbstract } from './token-lirium.service';
 import { LiriumErrorDto } from '../dto/lirium-error.dto';
+import { DatabaseService } from './database.service';
+import { RequestLogDto } from '../dto/request-log.dto';
+
 
 export interface HttpWrapperConfig {
   baseURL?: string;
@@ -36,6 +39,7 @@ export class HttpWrapperService {
   constructor(
     private readonly httpService: HttpService,
     private readonly tokenService: TokenLiriumServiceAbstract,
+    private readonly databaseService: DatabaseService,
   ) {}
 
   /**
@@ -46,6 +50,7 @@ export class HttpWrapperService {
     config?: HttpWrapperConfig,
   ): Promise<HttpWrapperResponse<T>> {
     const requestConfig = await this.buildRequestConfig('GET', url, config);
+    const requestId = this.generateRequestId();
 
     try {
       this.logger.log(`GET ${url}`);
@@ -53,11 +58,34 @@ export class HttpWrapperService {
         this.httpService.get<T>(url, requestConfig),
       );
 
-      return this.formatResponse(response);
+      const formattedResponse = this.formatResponse(response);
+    
+      await this.saveRequest({
+        id: requestId,
+        verb: 'GET',
+        path: url,
+        body: null,
+        response_body: formattedResponse.data,
+        error: "{}",
+        status_code: formattedResponse.status.toString(),
+      });
+
+      return formattedResponse;
     } catch (error) {
       this.logger.error(`GET ${url} failed:`, error.message);
-  
-      throw error.response.data;
+      const errorHandle= this.handleLiriumError(error, 'GET', url);
+      // Guardar la petición con error
+      await this.saveRequest({
+        id: requestId,
+        verb: 'GET',
+        path: url,
+        body: null,
+        response_body: null,
+        error: JSON.stringify(errorHandle),
+        status_code: error.response?.status?.toString() || '500',
+      });
+
+      throw errorHandle;
     }
   }
 
@@ -67,6 +95,7 @@ export class HttpWrapperService {
     config?: HttpWrapperConfig,
   ): Promise<HttpWrapperResponse<T>> {
     const requestConfig = await this.buildRequestConfig('POST', url, config);
+    const requestId = this.generateRequestId();
 
     try {
       this.logger.log(`POST ${url}`);
@@ -74,55 +103,39 @@ export class HttpWrapperService {
         this.httpService.post<T>(url, data, requestConfig),
       );
 
-      return this.formatResponse(response);
+      const formattedResponse = this.formatResponse(response);
+      
+      // Guardar la petición exitosa
+      await this.saveRequest({
+        id: requestId,
+        verb: 'POST',
+        path: url,
+        body: data,
+        response_body: formattedResponse.data,
+        error: "{}",
+        status_code: formattedResponse.status.toString(),
+      });
+
+      return formattedResponse;
     } catch (error) {
       this.logger.error(`POST ${url} failed:`, error.message);
-      throw error.response.data;
+      const errorHandle= this.handleLiriumError(error, 'POST', url);
+      // Guardar la petición con error
+      await this.saveRequest({
+        id: requestId,
+        verb: 'POST',
+        path: url,
+        body: data,
+        response_body: null,
+        error: JSON.stringify(errorHandle),
+        status_code: error.response?.status?.toString() || '500',
+      });
+
+      throw errorHandle;
     }
   }
 
-  /**
-   * Performs a GET request with automatic token and returns result (success or error)
-   */
-  async getSafe<T = any>(
-    url: string,
-    config?: HttpWrapperConfig,
-  ): Promise<HttpWrapperResult<T>> {
-    const requestConfig = await this.buildRequestConfig('GET', url, config);
 
-    try {
-      this.logger.log(`GET ${url}`);
-      const response: AxiosResponse<T> = await firstValueFrom(
-        this.httpService.get<T>(url, requestConfig),
-      );
-
-      return this.formatResponse(response);
-    } catch (error) {
-      return this.handleLiriumError(error, 'GET', url);
-    }
-  }
-
-  /**
-   * Performs a POST request with automatic token and returns result (success or error)
-   */
-  async postSafe<T = any>(
-    url: string,
-    data?: any,
-    config?: HttpWrapperConfig,
-  ): Promise<HttpWrapperResult<T>> {
-    const requestConfig = await this.buildRequestConfig('POST', url, config);
-
-    try {
-      this.logger.log(`POST ${url}`);
-      const response: AxiosResponse<T> = await firstValueFrom(
-        this.httpService.post<T>(url, data, requestConfig),
-      );
-
-      return this.formatResponse(response);
-    } catch (error) {
-      return this.handleLiriumError(error, 'POST', url);
-    }
-  }
 
   private async buildRequestConfig(
     method: string,
@@ -184,6 +197,8 @@ export class HttpWrapperService {
   async request<T = any>(
     config: AxiosRequestConfig & HttpWrapperConfig,
   ): Promise<HttpWrapperResponse<T>> {
+    const requestId = this.generateRequestId();
+
     try {
       // Get the token
       const tokenResponse = await this.tokenService.getToken();
@@ -206,12 +221,37 @@ export class HttpWrapperService {
         this.httpService.request<T>(requestConfig),
       );
 
-      return this.formatResponse(response);
+      const formattedResponse = this.formatResponse(response);
+      
+      // Guardar la petición exitosa
+      await this.saveRequest({
+        id: requestId,
+        verb: config.method?.toUpperCase() || 'UNKNOWN',
+        path: config.url || '',
+        body: config.data,
+        response_body: formattedResponse.data,
+        error: "",
+        status_code: formattedResponse.status.toString(),
+      });
+
+      return formattedResponse;
     } catch (error) {
       this.logger.error(
         `Request ${config.method} ${config.url} failed:`,
         error.message,
       );
+      
+      // Guardar la petición con error
+      await this.saveRequest({
+        id: requestId,
+        verb: config.method?.toUpperCase() || 'UNKNOWN',
+        path: config.url || '',
+        body: config.data,
+        response_body: null,
+        error: JSON.stringify(error),
+        status_code: error.response?.status?.toString() || '500',
+      });
+
       throw error;
     }
   }
@@ -260,5 +300,35 @@ export class HttpWrapperService {
       statusText: error.response?.statusText || 'Internal Server Error',
       headers: error.response?.headers || {},
     };
+  }
+
+  /**
+   * Generates a unique request ID
+   */
+  private generateRequestId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  /**
+   * Saves request data to database
+   */
+  private async saveRequest(request: RequestLogDto): Promise<void> {
+    try {
+      await this.databaseService.pool.query(
+        'INSERT INTO requests (id, verb, path, body, response_body, error, status_code) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [
+          request.id,
+          request.verb,
+          request.path,
+          request.body ? JSON.stringify(request.body) : null,
+          request.response_body ? JSON.stringify(request.response_body) : null,
+          request.error,
+          request.status_code,
+        ],
+      );
+    } catch (error) {
+      this.logger.error('Error saving request to database:', error.message);
+      // No lanzamos el error para no interrumpir el flujo principal
+    }
   }
 }

@@ -8,6 +8,7 @@ export class DepositListenerController {
   @Get()
   async listen(): Promise<{ message: string }> {
     try {
+      // first we have to get all the customers from the database
       await this.liriumService.getCustomerAccount('123');
       return { message: '✅ All steps completed successfully' };
     } catch (error: any) {
