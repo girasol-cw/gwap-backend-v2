@@ -56,7 +56,6 @@ async function callEndpoint() {
   }
 }
 
-// Ejecutar cada X milisegundos según .env
 setInterval(() => {
   callEndpoint();
 }, INTERVAL_MS);

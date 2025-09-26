@@ -1,11 +1,10 @@
 export class OrderRequestDto {
   userId: string;
-  amount: number;
   operationType: OperationType;
-  buy?: BuyOperation;
-  sell?: SellOperation;
+  asset: AssetDto;
+  tradeOperation?: TradeOperationDto;
   swap?: AssetDto;
-  send?: SendOperation;
+  send?: SendOperationDto;
   referenceId?: string;
 }
 
@@ -14,9 +13,11 @@ export class AssetDto {
   amount?: string;
 }
 
-export abstract class Operation {
+export class TradeOperationDto {
   settlement: AssetDto;
   commission: CommissionDto;
+  requiresConfirmationCode?: boolean;
+  expiresAt?: string;
 }
 
 export class CommissionDto {
@@ -24,12 +25,10 @@ export class CommissionDto {
   value: string;
 }
 
-export class BuyOperation extends Operation {}
-
-export class SellOperation extends Operation {}
-
-export class SendOperation {
+export class SendOperationDto {
   network: string;
+  requiresConfirmationCode: boolean;
+  expires_at: string;
 }
 export class DestinationDto {
   type: string; //crypto_currency_address
@@ -48,4 +47,8 @@ export enum OperationType {
 
 export class OrderResponseDto {
   orderId: string;
+  status: string;
+  createdAt: string;
+  requiresConfirmationCode?: boolean;
+  expiresAt?: string;
 }

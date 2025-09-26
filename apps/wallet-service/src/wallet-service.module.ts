@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
-
-import { WalletService } from './src/wallet-service.service';
 import { MetricsService } from './metrics.service';
-import { DatabaseService } from 'apps/api/src/common/database.service';
 import { WalletServiceController } from './wallet-service.controller';
+import { SharedModule } from 'libs/shared';
+import { GetWalletsService } from './src/get-wallets.service';
 
 @Module({
-  imports: [],
+  imports: [SharedModule],
   controllers: [WalletServiceController],
-  providers: [WalletService, MetricsService,DatabaseService],
-  exports: [DatabaseService]
+  providers: [ MetricsService, GetWalletsService],
+  exports: []
 })
 export class WalletServiceModule { }

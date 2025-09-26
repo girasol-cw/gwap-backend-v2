@@ -1,6 +1,10 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { WalletServiceModule } from './wallet-service.module';
 import { ApiKeyGuard } from './common/api-key-guard';
+import * as dotenv from 'dotenv';
+
+// Cargar variables de entorno
+dotenv.config();
 
 
 async function bootstrap() {

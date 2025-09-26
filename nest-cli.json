@@ -28,13 +28,13 @@
         "tsConfigPath": "apps/wallet-service/tsconfig.app.json"
       }
     },
-    "deposit-listener": {
+    "deposit": {
       "type": "application",
-      "root": "apps/deposit-listener",
+      "root": "apps/deposit",
       "entryFile": "main",
-      "sourceRoot": "apps/deposit-listener/src",
+      "sourceRoot": "apps/deposit/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/deposit-listener/tsconfig.app.json"
+        "tsConfigPath": "apps/deposit/tsconfig.app.json"
       }
     }
   }

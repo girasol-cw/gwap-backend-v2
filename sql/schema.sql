@@ -2,49 +2,81 @@
 CREATE TABLE users (
   user_id TEXT PRIMARY KEY,
   girasol_account_id TEXT NOT NULL,
-  email TEXT NOT NULL
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status text null,
+  label text null,
+  first_name text NOT NULL,
+  middle_name text null,
+  last_name TEXT NOT NULL,
+  date_of_birth date NOT NULL,
+  national_id_country text NOT NULL,
+  national_id_type text NOT NULL,
+  national_id text NOT NULL,
+  citizenship text NOT NULL,
+  address_line1 text NOT NULL,
+  address_line2 text null,
+  city text NOT NULL,
+  state text NOT NULL,
+  country text NOT NULL,
+  zip_code text NOT NULL,
+  tax_id text NULL,
+  tax_country text NULL,
+  cellphone text NOT NULL,
+  email TEXT NOT NULL,
+  customer JSONB Null
 );
 
 -- wallets
 CREATE TABLE wallets (
+  id TEXT NOT NULL PRIMARY KEY,
   user_id TEXT NOT NULL,
   deposit_addr TEXT NOT NULL,
   network TEXT NOT NULL,
-  currency TEXT NOT NULL,
-  asset_type TEXT NOT NULL,
-  PRIMARY KEY (deposit_addr, chain_id),
+  currency TEXT NULL,
+  asset_type TEXT NULL,
+
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- -- deposits
--- CREATE TABLE deposits (
---   tx_hash TEXT NOT NULL,
---   chain_id TEXT NOT NULL,
---   deposit_addr TEXT NOT NULL,
---   erc20_address TEXT NOT NULL,
---   amount_usd TEXT NOT NULL,
---   gas_used TEXT NOT NULL,
---   block_number BIGINT NOT NULL,
---   confirmed BOOLEAN DEFAULT FALSE,
---   settled BOOLEAN DEFAULT FALSE,  
---   settlement_hash TEXT,
---   swept BOOLEAN,
---   PRIMARY KEY (tx_hash, chain_id),
---   FOREIGN KEY (deposit_addr, chain_id) REFERENCES wallets(deposit_addr, chain_id) ON DELETE CASCADE
--- );
+-- deposits now is not ready to use
+CREATE TABLE deposits (
+  user_id TEXT NOT NULL,.
+  wallet_id TEXT NOT NULL,
+  order_id TEXT NOT NULL, --todo must be null???
+  deposit_addr TEXT NOT NULL,
+  erc20_amount TEXT NOT NULL,
+  network TEXT NOT NULL,
+  settled BOOLEAN DEFAULT FALSE, 
+  amount_usd TEXT NOT NULL,
+  PRIMARY KEY (order_id),
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+);
+
+CREATE TABLE requests (
+  id TEXT NOT NULL,
+  verb TEXT NOT NULL,
+  path TEXT NOT NULL,
+  body JSONB  NULL,
+  response_body JSONB  NULL,
+  error JSONB null,
+  status_code TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+)
 
 
+CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);
 
 
--- CREATE INDEX idx_deposits_confirmed_swept ON deposits (confirmed, swept);
--- CREATE INDEX idx_deposits_confirmed_settled ON deposits (confirmed, settled);
--- CREATE INDEX idx_deposits_deposit_addr_chain_id ON deposits (deposit_addr, chain_id);
--- CREATE INDEX idx_deposits_block_number ON deposits (block_number);
+CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits (user_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_addr_net ON deposits (deposit_addr, network);
+CREATE INDEX IF NOT EXISTS idx_deposits_confirmed ON deposits (confirmed);
+
+CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
+  ON deposits (order_id) WHERE confirmed = false;
 
 
--- CREATE INDEX idx_wallets_deposit_addr_chain_id ON wallets (deposit_addr, chain_id);
--- CREATE INDEX idx_wallets_chain_id ON wallets (chain_id);
--- CREATE INDEX idx_wallets_user_id ON wallets (user_id);
-
-
--- CREATE UNIQUE INDEX idx_users_user_id ON users (user_id);
+CREATE INDEX IF NOT EXISTS idx_requests_status_code ON requests (status_code);
+CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests (created_at);
