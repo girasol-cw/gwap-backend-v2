@@ -38,7 +38,7 @@ CREATE TABLE wallets (
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- deposits
+-- deposits now is not ready to use
 CREATE TABLE deposits (
   user_id TEXT NOT NULL,.
   wallet_id TEXT NOT NULL,
