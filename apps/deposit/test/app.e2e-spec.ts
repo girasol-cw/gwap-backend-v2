@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { DepositListenerModule } from '../src/deposit-listener.module';
+import request = require('supertest');
+import { DepositModule } from '../src/deposit-listener.module';
+
 
 describe('DepositListenerController (e2e)', () => {
   let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [DepositListenerModule],
+      imports: [DepositModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();

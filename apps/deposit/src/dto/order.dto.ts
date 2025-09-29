@@ -11,6 +11,8 @@ export class OrderRequestDto {
 export class AssetDto {
   currency: string;
   amount?: string;
+  settlement?: AssetDto;
+  operation?: string;
 }
 
 export class TradeOperationDto {

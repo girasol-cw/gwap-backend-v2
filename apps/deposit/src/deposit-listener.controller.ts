@@ -1,15 +1,14 @@
-import { Controller, Get } from '@nestjs/common';
-import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { Controller, Post } from '@nestjs/common';
+import { ListenerService } from './services/listener.service';
 
 @Controller()
 export class DepositListenerController {
-  constructor(private readonly liriumService: LiriumRequestServiceAbstract) {}
+  constructor(private readonly listenerService: ListenerService) {}
 
-  @Get()
+  @Post('listen')
   async listen(): Promise<{ message: string }> {
     try {
-      // first we have to get all the customers from the database
-      await this.liriumService.getCustomerAccount('123');
+      await this.listenerService.listen();
       return { message: '✅ All steps completed successfully' };
     } catch (error: any) {
       return { message: `❌ Error during listen: ${error.message}` };
