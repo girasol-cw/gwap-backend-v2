@@ -10,7 +10,7 @@ dotenv.config();
 async function bootstrap() {
   const app = await NestFactory.create(WalletServiceModule);
   const reflector = app.get(Reflector);
-  // app.useGlobalGuards(new ApiKeyGuard(reflector));
+   app.useGlobalGuards(new ApiKeyGuard(reflector));
   await app.listen(process.env.PORT ?? 3001);
 }
 bootstrap();
