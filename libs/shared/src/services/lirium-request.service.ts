@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
 } from 'apps/deposit/src/dto/lirium.dto';
@@ -18,7 +19,7 @@ export abstract class LiriumRequestServiceAbstract {
     order: LiriumOrderRequestDto,
   ): Promise<LiriumOrderResponseDto>;
   abstract confirmOrder(
-    order: LiriumOrderRequestDto,
+    order: LiriumOrderConfirmRequestDto,
   ): Promise<LiriumOrderResponseDto>;
   abstract getCustomerAccount(
     accountId: string,
@@ -118,7 +119,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     const address = await this.getWallets(responseBody.id!);
     await this.saveWallet(address, responseBody.id!);
     address.userId = responseBody.id!;
-    console.log("address to return",address);
+    console.log('address to return', address);
     return address;
   }
 
@@ -126,7 +127,6 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     customer: LiriumRequestDto,
     girasolAccountId: string,
   ): void {
- 
     this.databaseService.pool.query(
       'INSERT INTO users (user_id, girasol_account_id, status, label,' +
         'first_name, middle_name, last_name, date_of_birth, national_id_country, national_id_type, national_id,' +
@@ -159,9 +159,12 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     );
   }
 
-  private async saveWallet(wallets: AddWalletResponseDto, customerId: string): Promise<void> {
+  private async saveWallet(
+    wallets: AddWalletResponseDto,
+    customerId: string,
+  ): Promise<void> {
     for (const wallet of wallets.address) {
-   await this.databaseService.pool.query(
+      await this.databaseService.pool.query(
         'INSERT INTO wallets (id, user_id, deposit_addr, network, currency, asset_type) VALUES ($1, $2, $3, $4, $5, $6)',
         [
           this.generateWalletId(),
@@ -170,7 +173,6 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
           wallet.network,
           wallet.currency,
           wallet.asset_type,
-   
         ],
       );
     }
@@ -180,23 +182,61 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     return crypto.randomUUID();
   }
 
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delay: number = 1000,
+  ): Promise<T> {
+    let lastError: Error;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+
+        if (attempt === maxRetries) {
+          console.log(
+            `💥 All ${maxRetries} attempts failed, throwing final error:`,
+            lastError,
+          );
+          throw lastError;
+        }
+
+        console.log(
+          `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
+          error.message,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+      }
+    }
+
+    throw lastError!;
+  }
+
   async createOrder(
     order: LiriumOrderRequestDto,
   ): Promise<LiriumOrderResponseDto> {
-    const response = await this.httpService.post<any>(
-      `${process.env.LIRIUM_API_URL}/customers/{customer_id}/orders`,
-      order,
-    );
-
-    return response.data;
+    return this.retryOperation(async () => {
+      const response = await this.httpService.post<any>(
+        `${process.env.LIRIUM_API_URL}/customers/${order.customer_id}/orders`,
+        order,
+      );
+      return response.data;
+    });
   }
+
   async confirmOrder(
-    order: LiriumOrderRequestDto,
+    order: LiriumOrderConfirmRequestDto,
   ): Promise<LiriumOrderResponseDto> {
-    const response = await this.httpService.post<LiriumOrderResponseDto>(
-      `${process.env.LIRIUM_API_URL}/customers/{customer_id}/orders/{order_id}/confirm`,
-      order,
-    );
-    return response.data;
+    return this.retryOperation(async () => {
+      const response = await this.httpService.post<LiriumOrderResponseDto>(
+        `${process.env.LIRIUM_API_URL}/customers/${order.customer_id}/orders/${order.order_id}/confirm`,
+        order,
+      );
+      return response.data;
+    });
   }
 }

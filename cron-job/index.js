@@ -38,8 +38,9 @@ if (intervalBigInt > MAX_INTERVAL_MS) {
 
 async function callEndpoint() {
   try {
+    console.log(`🔄 Calling endpoint: ${API_URL}`);
     const response = await fetch(API_URL, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },

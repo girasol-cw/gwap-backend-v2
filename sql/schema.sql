@@ -38,19 +38,14 @@ CREATE TABLE wallets (
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- deposits now is not ready to use
 CREATE TABLE deposits (
-  user_id TEXT NOT NULL,.
-  wallet_id TEXT NOT NULL,
-  order_id TEXT NOT NULL, --todo must be null???
-  deposit_addr TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   erc20_amount TEXT NOT NULL,
-  network TEXT NOT NULL,
-  settled BOOLEAN DEFAULT FALSE, 
+  confirmed BOOLEAN DEFAULT FALSE, 
   amount_usd TEXT NOT NULL,
   PRIMARY KEY (order_id),
-  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-  FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE requests (
@@ -71,12 +66,10 @@ CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);
 
 
 CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits (user_id);
-CREATE INDEX IF NOT EXISTS idx_deposits_addr_net ON deposits (deposit_addr, network);
 CREATE INDEX IF NOT EXISTS idx_deposits_confirmed ON deposits (confirmed);
 
 CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
   ON deposits (order_id) WHERE confirmed = false;
-
 
 CREATE INDEX IF NOT EXISTS idx_requests_status_code ON requests (status_code);
 CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests (created_at);
