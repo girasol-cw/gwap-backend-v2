@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { AssetDto, OperationType } from './order.dto';
 
 export type LiriumOrderResponseDto = {
@@ -23,7 +24,10 @@ export type LiriumOrderConfirmRequestDto = {
   customer?:AssetDto;
 };
 
-
-export type LiriumCustomerAccountResponseDto = {
+export class LiriumCustomerAccountResponseDto {
+  @ApiProperty({ 
+    description: 'Array of customer accounts',
+    type: [AssetDto]
+  })
   accounts: AssetDto[]; 
-};
+}
