@@ -16,6 +16,8 @@ export type LiriumOrderRequestDto = {
   operation: OperationType;
   asset: AssetDto;
   sell?: AssetDto;
+  buy?: AssetDto;
+  send?: AssetDto;
 };
 
 export type LiriumOrderConfirmRequestDto = {

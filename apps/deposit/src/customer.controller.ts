@@ -6,7 +6,7 @@ import {
   Param,
 } from '@nestjs/common';
 import { LiriumCustomerAccountResponseDto } from './dto/lirium.dto';
-import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ErrorResponseDto } from 'apps/wallet-service/src/dto/add-wallet.dto';
 

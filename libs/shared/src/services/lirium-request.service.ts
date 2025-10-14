@@ -13,22 +13,7 @@ import {
 import { HttpWrapperService } from './http-wrapper.service';
 import { LiriumRequestDto } from '../dto/lirium-request.dto';
 import { DatabaseService } from './database.service';
-
-export abstract class LiriumRequestServiceAbstract {
-  abstract createOrder(
-    order: LiriumOrderRequestDto,
-  ): Promise<LiriumOrderResponseDto>;
-  abstract confirmOrder(
-    order: LiriumOrderConfirmRequestDto,
-  ): Promise<LiriumOrderResponseDto>;
-  abstract getCustomerAccount(
-    accountId: string,
-  ): Promise<LiriumCustomerAccountResponseDto>;
-  abstract getWallets(accountId: string): Promise<AddWalletResponseDto>;
-  abstract createCustomer(
-    customer: AddWalletRequestDto,
-  ): Promise<AddWalletResponseDto>;
-}
+import { LiriumRequestServiceAbstract } from '../interfaces/lirium-request.service.abstract';
 
 @Injectable()
 export class LiriumRequestService extends LiriumRequestServiceAbstract {

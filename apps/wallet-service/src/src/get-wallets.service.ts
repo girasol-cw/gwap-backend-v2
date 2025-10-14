@@ -1,4 +1,4 @@
-import { LiriumRequestServiceAbstract } from 'libs/shared/src/services/lirium-request.service';
+import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import { AddWalletResponseDto } from '../dto/add-wallet.dto';
 import { DatabaseService } from 'libs/shared/src/services/database.service';
 import { Injectable } from '@nestjs/common';

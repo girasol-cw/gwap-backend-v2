@@ -5,11 +5,11 @@ import {
   TokenLiriumService,
 } from './services/token-lirium.service';
 import {
-  LiriumRequestServiceAbstract,
   LiriumRequestService,
 } from './services/lirium-request.service';
 import { HttpWrapperService } from './services/http-wrapper.service';
 import { DatabaseService } from './services/database.service';
+import { LiriumRequestServiceAbstract } from './interfaces/lirium-request.service.abstract';
 
 const tokenLiriumProvider: Provider = {
   provide: TokenLiriumServiceAbstract,

@@ -12,7 +12,7 @@ import {
 
 import { AddWalletRequestDto, AddWalletResponseDto, ErrorResponseDto } from './dto/add-wallet.dto';
 import { globalRegistry, MetricsService } from './metrics.service';
-import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import { GetWalletsService } from './src/get-wallets.service';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
 

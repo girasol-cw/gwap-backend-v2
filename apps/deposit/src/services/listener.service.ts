@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'libs/shared/src/services/database.service';
-import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
