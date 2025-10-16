@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
@@ -89,6 +89,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       },
     };
 
+    const customerDoesExist = await this.verifyCustomerDoesExist(customer);
+    if (customerDoesExist) {
+      throw new BadRequestException(`Customer with girasol account id ${customer.accountId} already exists`);
+    }
+
     const response = await this.httpService.post<any>(
       `${process.env.LIRIUM_API_URL}/customers`,
       requestBody,
@@ -106,6 +111,14 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     address.userId = responseBody.id!;
     console.log('address to return', address);
     return address;
+  }
+
+  private async verifyCustomerDoesExist(customer: AddWalletRequestDto): Promise<boolean> {
+    const result = await this.databaseService.pool.query<string[]>(
+      'SELECT user_id FROM users WHERE girasol_account_id = $1',
+      [customer.accountId],
+    );
+    return result.rows.length > 0;
   }
 
   private saveCustomer(
@@ -178,7 +191,8 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       try {
         return await operation();
       } catch (error) {
-        lastError = error as Error;
+        
+        lastError = this.mapLiriumError(error);
 
         if (attempt === maxRetries) {
           console.log(
@@ -199,6 +213,27 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     }
 
     throw lastError!;
+  }
+
+  private mapLiriumError(error: any): Error {
+
+    if (error?.error?.error_code) {
+      const { error_code, error_msg, request_id } = error.error;
+      const statusCode = error.status || 500;
+      return new HttpException(
+        {
+          error_code,
+          error_msg,
+          request_id,
+          source: 'lirium_api'
+        },
+        statusCode
+      );
+    }
+    return new HttpException(
+      { message: error.message || 'Unknown error' },
+      500
+    );
   }
 
   async createOrder(

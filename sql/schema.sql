@@ -60,6 +60,25 @@ CREATE TABLE requests (
   PRIMARY KEY (id)
 )
 
+CREATE TABLE orders (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  reference_id TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  asset JSONB NOT NULL,
+  settlement JSONB Null,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  order_body JSONB Null,
+  order_response JSONB Null,
+  network TEXT NULL,
+  fees text null,
+  destination_type text null,
+  destination_value text null,
+  destination_amount text null,
+  PRIMARY KEY (id),
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
 
 CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);
@@ -73,3 +92,6 @@ CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
 
 CREATE INDEX IF NOT EXISTS idx_requests_status_code ON requests (status_code);
 CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests (created_at);
+
+ALTER TABLE deposits ADD COLUMN currency TEXT NULL;
+alter table users add column auto_sale BOOLEAN DEFAULT TRUE;

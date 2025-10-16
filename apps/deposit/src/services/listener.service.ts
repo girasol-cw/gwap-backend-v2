@@ -73,6 +73,7 @@ export class ListenerService {
     try {
       this.logger.log(`Creating order for ${customer} ${asset}`);
       console.log('lirium-Order-Request', liriumOrder);
+      liriumOrder.currency = asset.currency ?? '';
       const order = await this.liriumService.createOrder(liriumOrder);
       await this.saveDeposit(customer, order);
       await this.confirmDeposit(customer, order);

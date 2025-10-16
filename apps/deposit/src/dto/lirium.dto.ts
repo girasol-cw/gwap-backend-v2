@@ -18,6 +18,7 @@ export type LiriumOrderRequestDto = {
   sell?: AssetDto;
   buy?: AssetDto;
   send?: AssetDto;
+  currency?: string;
 };
 
 export type LiriumOrderConfirmRequestDto = {
