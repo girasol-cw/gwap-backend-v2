@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AssetDto, OperationType } from './order.dto';
+import { AssetDto, OperationType, SendOperationDto } from './order.dto';
 
 export type LiriumOrderResponseDto = {
   id: string;
@@ -17,7 +17,7 @@ export type LiriumOrderRequestDto = {
   asset: AssetDto;
   sell?: AssetDto;
   buy?: AssetDto;
-  send?: AssetDto;
+  send?: SendOperationDto;
   currency?: string;
 };
 

@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 export enum OperationType {
   BUY = 'buy',
   SELL = 'sell',
@@ -11,158 +11,163 @@ export enum OperationType {
 
 // Define AssetDto FIRST (before any class that uses it)
 export class AssetDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Currency code',
-    example: 'USDC'
+    example: 'USDC',
   })
   currency: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Amount of the asset',
-    example: '100.50'
+    example: '100.50',
   })
   amount?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Settlement asset information',
-    type: () => AssetDto
+    type: () => AssetDto,
   })
   settlement?: AssetDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Operation type',
-    example: 'buy'
+    example: 'buy',
   })
   operation?: string;
+  @Transform(({ value }) => ({ requires_confirmation_code: value }), {
+    toPlainOnly: true,
+  })
+  requiresConfirmationCode?: boolean;
 }
 
 export class CommissionDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Commission type',
-    example: 'percentage'
+    example: 'percentage',
   })
   type: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Commission value',
-    example: '0.5'
+    example: '0.5',
   })
   value: string;
 }
 
 // TradeOperationDto can now reference AssetDto safely
 export class TradeOperationDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Settlement asset',
-    type: () => AssetDto
+    type: () => AssetDto,
   })
   settlement: AssetDto;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Commission information',
-    type: () => CommissionDto
+    type: () => CommissionDto,
   })
   commission: CommissionDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Whether confirmation code is required',
-    example: false
+    example: false,
   })
   requiresConfirmationCode?: boolean;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Expiration date in ISO format',
-    example: '2023-10-14T12:00:00Z'
+    example: '2023-10-14T12:00:00Z',
   })
   expiresAt?: string;
 }
-
-export class SendOperationDto {
-  @ApiProperty({ 
-    description: 'Blockchain network',
-    example: 'polygon'
-  })
-  network: string;
-
-  @ApiProperty({ 
-    description: 'Whether confirmation code is required',
-    example: true
-  })
-  requiresConfirmationCode: boolean;
-
-  @ApiProperty({ 
-    description: 'Expiration timestamp',
-    example: '2023-10-14T12:00:00Z'
-  })
-  expires_at: string;
-}
-
 export class DestinationDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Destination type',
-    example: 'crypto_currency_address'
+    example: 'crypto_currency_address',
   })
   type: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Destination address',
-    example: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    example: '0xaddress',
   })
   value: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Amount to send',
-    example: '50.25'
+    example: '50.25',
   })
   amount: string;
 }
+export class SendOperationDto {
+  @ApiProperty({
+    description: 'Blockchain network',
+    example: 'polygon',
+  })
+  network: string;
+  @ApiProperty({
+    description: 'Destination details',
+    type: () => DestinationDto,
+  })
+
+  @ApiPropertyOptional({
+    description: 'Destination details',
+    type: () => DestinationDto,
+  })
+  destination: DestinationDto;
+
+  expires_at?: string;
+  requiresConfirmationCode?: boolean;
+}
+
+
 
 // OrderRequestDto goes LAST (after all dependencies are defined)
 export class OrderRequestDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Girasol User ID',
-    example: 'user123' 
+    example: 'user123',
   })
   userId: string;
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Lirium Order ID',
-    example: 'ord_123456' 
+    example: 'ord_123456',
   })
   orderId?: string;
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Type of operation to perform',
     enum: OperationType,
-    example: OperationType.BUY
+    example: OperationType.BUY,
   })
   operationType: OperationType;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Asset information',
-    type: () => AssetDto
+    type: () => AssetDto,
   })
   asset: AssetDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Trade operation details (for buy/sell)',
-    type: () => TradeOperationDto
+    type: () => TradeOperationDto,
   })
   tradeOperation?: TradeOperationDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Swap asset information',
-    type: () => AssetDto
+    type: () => AssetDto,
   })
   swap?: AssetDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Send operation details',
-    type: () => SendOperationDto
+    type: () => SendOperationDto,
   })
   send?: SendOperationDto;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Reference ID for the order',
-    example: 'Buy20231014120000'
+    example: 'Buy20231014120000',
   })
   referenceId?: string;
 }
@@ -174,33 +179,28 @@ export class OrderDto {
 }
 
 export class OrderResponseDto {
-  @ApiProperty({ 
+  orderId: string;
+  status: string;
+  createdAt: string;
+  requiresConfirmationCode?: boolean;
+  expiresAt?: string;
+}
+
+
+export class OrderConfirmRequestDto {
+  @ApiProperty({
+    description: 'Girasol User ID',
+    example: 'user123',
+  })
+  userId: string;
+  @ApiProperty({
     description: 'Order ID',
-    example: 'ord_123456'
+    example: 'ord_123456',
   })
   orderId: string;
-
-  @ApiProperty({ 
-    description: 'Order status',
-    example: 'pending'
+  @ApiProperty({
+    description: 'Confirmation code',
+    example: '123456',
   })
-  status: string;
-
-  @ApiProperty({ 
-    description: 'Order creation date in ISO format',
-    example: '2023-10-14T12:00:00Z'
-  })
-  createdAt: string;
-
-  @ApiPropertyOptional({ 
-    description: 'Whether confirmation code is required',
-    example: false
-  })
-  requiresConfirmationCode?: boolean;
-
-  @ApiPropertyOptional({ 
-    description: 'Expiration date in ISO format',
-    example: '2023-10-14T12:00:00Z'
-  })
-  expiresAt?: string;
+  confirmationCode?: string;
 }

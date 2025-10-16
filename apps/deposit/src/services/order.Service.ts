@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from 'libs/shared';
 import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
-import { AssetDto, OperationType, OrderDto, OrderRequestDto } from '../dto/order.dto';
+import { AssetDto, OperationType, OrderConfirmRequestDto, OrderDto, OrderRequestDto } from '../dto/order.dto';
 import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
 } from '../dto/lirium.dto';
+import { OrderModel } from '../models/order';
 
 @Injectable()
 export class OrderService {
@@ -33,12 +34,12 @@ export class OrderService {
 
   private readonly SQL_QUERIES = {
     getCustomerId: 'SELECT user_id FROM users WHERE girasol_account_id = $1',
-    getOrder:'SELECT ASSET, REFERENCE_ID FROM orders WHERE id = $1',
+    getOrder:'SELECT ASSET,SETTLEMENT,STATUS, REFERENCE_ID FROM orders WHERE id = $1',
     saveOrder:
       'INSERT INTO orders (id, user_id, reference_id, operation, asset, ' +
       'status, created_at, order_body, order_response, network, fees, destination_type, ' +
-      ' destination_value, destination_amount, settlement) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
-    confirmOrder: 'UPDATE orders SET status = $1 WHERE id = $3',
+      ' destination_value, destination_amount, settlement, requires_confirmation_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)',
+    confirmOrder: 'UPDATE orders SET status = $1 WHERE id = $2',
   };
 
   async createOrder(order: OrderRequestDto): Promise<LiriumOrderResponseDto> {
@@ -53,30 +54,48 @@ export class OrderService {
     return orderResponse;
   }
 
-  async confirmOrder(order: OrderRequestDto): Promise<LiriumOrderResponseDto> {
-    this.logger.log(`Confirming order ${order}`);
+  async confirmOrder(order: OrderConfirmRequestDto): Promise<LiriumOrderResponseDto> {
+    this.logger.log(`Confirming order with id ${order.orderId}`);
     const customerId = await this.getCustomerId(order.userId);
     if (!order.orderId) {
       throw new BadRequestException('Lirium Order ID is required');
     }
     order.userId = customerId;
+    const orderDto = await this.getOrder(order.orderId!);
+
+    let currency = orderDto.settlement?.currency;
+    let amount = orderDto.settlement?.amount;
+    if(!amount) {
+     currency = orderDto.asset?.currency;
+     amount = orderDto.asset?.amount;
+    }
+
     const liriumOrder: LiriumOrderConfirmRequestDto = {
       customer_id: customerId,
       order_id: order.orderId!,
-      customer: order.asset,
+      customer: {
+        currency: currency!,
+        amount: amount!,
+      },
     };
-    console.log('liriumOrder', liriumOrder);
+   
     const orderResponse = await this.liriumService.confirmOrder(liriumOrder);
     await this.updateOrder(orderResponse);
     return orderResponse;
   }
 
-  private async getOrder(orderId: string): Promise<OrderDto> {
-    const result = await this.dbService.pool.query<string[]>(
+  private async getOrder(orderId: string): Promise<OrderModel> {
+    const result = await this.dbService.pool.query<OrderModel>(
       this.SQL_QUERIES.getOrder,
       [orderId],
     );
-    return result.rows[0];
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Order with id ${orderId} not found`);
+    }
+    const orderModel = result.rows[0];
+    console.log('orderModel', orderModel);
+    
+    return orderModel;
   }
   private async updateOrder(order: LiriumOrderResponseDto): Promise<void> {
     this.logger.log(`Updating order ${order}`);
@@ -94,10 +113,13 @@ export class OrderService {
     this.logger.log(`Order body ${order}`);
 
     let settlement: AssetDto | undefined;
+    let requiresConfirmationCode: boolean = false;
     if(order.operation === OperationType.SELL) {
       settlement = orderResponse.sell?.settlement;
+      requiresConfirmationCode = order.sell?.requiresConfirmationCode ?? false;
     } else if(order.operation === OperationType.BUY) {
       settlement = orderResponse.buy?.settlement;
+      requiresConfirmationCode = order.buy?.requiresConfirmationCode ?? false;
     } 
 
 
@@ -119,6 +141,7 @@ export class OrderService {
         null,
         null,
         settlement,
+        requiresConfirmationCode,
       ],
     );
   }
@@ -145,7 +168,15 @@ export class OrderService {
         liriumOrder.buy = order.tradeOperation?.settlement || order.asset;
         break;
       case OperationType.SEND:
-        liriumOrder.send = order.asset;
+        console.log('order.send', order.send);
+        if(!order.send?.network || !order.send?.destination) {
+          throw new BadRequestException('Network and destination are required');
+        }
+        liriumOrder.asset = order.asset;
+        liriumOrder.send={
+          network: order.send?.network!,
+          destination: order.send!.destination!,
+        }
         break;
       default:
         this.logger.warn(

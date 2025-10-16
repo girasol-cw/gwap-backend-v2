@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { OrderRequestDto, OrderResponseDto } from './dto/order.dto';
+import { OrderConfirmRequestDto, OrderRequestDto, OrderResponseDto } from './dto/order.dto';
 import { OrderService } from './services/order.Service';
 import { LiriumOrderResponseDto } from './dto/lirium.dto';
 
@@ -13,8 +13,7 @@ export class OrderController {
     
   }
   @Post('order/confirm')
-  async confirmOrder(@Body() body: OrderRequestDto): Promise<LiriumOrderResponseDto> {
-    console.log(body);
+  async confirmOrder(@Body() body: OrderConfirmRequestDto): Promise<LiriumOrderResponseDto> {
     return await this.orderService.confirmOrder(body);
   }
 }

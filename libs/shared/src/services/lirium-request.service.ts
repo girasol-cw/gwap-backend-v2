@@ -91,7 +91,9 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
     const customerDoesExist = await this.verifyCustomerDoesExist(customer);
     if (customerDoesExist) {
-      throw new BadRequestException(`Customer with girasol account id ${customer.accountId} already exists`);
+      throw new BadRequestException(
+        `Customer with girasol account id ${customer.accountId} already exists`,
+      );
     }
 
     const response = await this.httpService.post<any>(
@@ -113,7 +115,9 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     return address;
   }
 
-  private async verifyCustomerDoesExist(customer: AddWalletRequestDto): Promise<boolean> {
+  private async verifyCustomerDoesExist(
+    customer: AddWalletRequestDto,
+  ): Promise<boolean> {
     const result = await this.databaseService.pool.query<string[]>(
       'SELECT user_id FROM users WHERE girasol_account_id = $1',
       [customer.accountId],
@@ -191,32 +195,56 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       try {
         return await operation();
       } catch (error) {
-        
         lastError = this.mapLiriumError(error);
 
-        if (attempt === maxRetries) {
+        // Solo reintentar si es un error que vale la pena reintentar
+        if (this.shouldRetry(lastError) && attempt < maxRetries) {
           console.log(
-            `💥 All ${maxRetries} attempts failed, throwing final error:`,
-            lastError,
+            `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
+            lastError.message,
           );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        } else {
+          // No reintentar o último intento
+          if (attempt === maxRetries) {
+            console.log(
+              `💥 All ${maxRetries} attempts failed, throwing final error:`,
+              lastError,
+            );
+          }
           throw lastError;
         }
-
-        console.log(
-          `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
-          error.message,
-        );
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
       }
     }
 
     throw lastError!;
   }
 
-  private mapLiriumError(error: any): Error {
+  private shouldRetry(error: Error): boolean {
+    if (error instanceof HttpException) {
+      const status = error.getStatus();
 
+      if (status >= 500) {
+        return true;
+      }
+
+      if (status === 408 || status === 429) {
+        return true;
+      }
+      return false;
+    }
+    if (
+      error.message.includes('ECONNABORTED') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('timeout')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private mapLiriumError(error: any): Error {
     if (error?.error?.error_code) {
       const { error_code, error_msg, request_id } = error.error;
       const statusCode = error.status || 500;
@@ -225,14 +253,14 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
           error_code,
           error_msg,
           request_id,
-          source: 'lirium_api'
+          source: 'lirium_api',
         },
-        statusCode
+        statusCode,
       );
     }
     return new HttpException(
       { message: error.message || 'Unknown error' },
-      500
+      500,
     );
   }
 

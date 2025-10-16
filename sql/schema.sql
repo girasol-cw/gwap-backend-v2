@@ -76,6 +76,7 @@ CREATE TABLE orders (
   destination_type text null,
   destination_value text null,
   destination_amount text null,
+  requires_confirmation_code BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (id),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
