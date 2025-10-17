@@ -197,6 +197,14 @@ export class AddWalletResponseDto {
   })
   address: walletDto[];
 
+  @ApiProperty({ 
+    description: 'Array of chain IDs that failed to deploy',
+    type: [String],
+    required: false,
+    example: ['1', '137']
+  })
+  errorChainIds?: string[];
+
 }
 
 export class ErrorResponseDto {

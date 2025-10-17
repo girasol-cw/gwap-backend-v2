@@ -3,6 +3,10 @@ import { INestApplication } from '@nestjs/common';
 import request = require('supertest');
 import { WalletServiceModule } from './../src/wallet-service.module';
 
+// Set test environment variables
+process.env.LIRIUM_API_KEY = 'test-api-key';
+process.env.LIRIUM_PRIVATE_KEY_B64 = Buffer.from('test-private-key').toString('base64');
+
 describe('WalletServiceController (e2e)', () => {
   let app: INestApplication;
 
@@ -15,10 +19,9 @@ describe('WalletServiceController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/metrics (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+      .get('/metrics')
+      .expect(200);
   });
 });
