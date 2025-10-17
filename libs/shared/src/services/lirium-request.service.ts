@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
@@ -13,22 +13,7 @@ import {
 import { HttpWrapperService } from './http-wrapper.service';
 import { LiriumRequestDto } from '../dto/lirium-request.dto';
 import { DatabaseService } from './database.service';
-
-export abstract class LiriumRequestServiceAbstract {
-  abstract createOrder(
-    order: LiriumOrderRequestDto,
-  ): Promise<LiriumOrderResponseDto>;
-  abstract confirmOrder(
-    order: LiriumOrderConfirmRequestDto,
-  ): Promise<LiriumOrderResponseDto>;
-  abstract getCustomerAccount(
-    accountId: string,
-  ): Promise<LiriumCustomerAccountResponseDto>;
-  abstract getWallets(accountId: string): Promise<AddWalletResponseDto>;
-  abstract createCustomer(
-    customer: AddWalletRequestDto,
-  ): Promise<AddWalletResponseDto>;
-}
+import { LiriumRequestServiceAbstract } from '../interfaces/lirium-request.service.abstract';
 
 @Injectable()
 export class LiriumRequestService extends LiriumRequestServiceAbstract {
@@ -104,6 +89,13 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       },
     };
 
+    const customerDoesExist = await this.verifyCustomerDoesExist(customer);
+    if (customerDoesExist) {
+      throw new BadRequestException(
+        `Customer with girasol account id ${customer.accountId} already exists`,
+      );
+    }
+
     const response = await this.httpService.post<any>(
       `${process.env.LIRIUM_API_URL}/customers`,
       requestBody,
@@ -121,6 +113,16 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     address.userId = responseBody.id!;
     console.log('address to return', address);
     return address;
+  }
+
+  private async verifyCustomerDoesExist(
+    customer: AddWalletRequestDto,
+  ): Promise<boolean> {
+    const result = await this.databaseService.pool.query<string[]>(
+      'SELECT user_id FROM users WHERE girasol_account_id = $1',
+      [customer.accountId],
+    );
+    return result.rows.length > 0;
   }
 
   private saveCustomer(
@@ -193,27 +195,73 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       try {
         return await operation();
       } catch (error) {
-        lastError = error as Error;
+        lastError = this.mapLiriumError(error);
 
-        if (attempt === maxRetries) {
+        // Solo reintentar si es un error que vale la pena reintentar
+        if (this.shouldRetry(lastError) && attempt < maxRetries) {
           console.log(
-            `💥 All ${maxRetries} attempts failed, throwing final error:`,
-            lastError,
+            `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
+            lastError.message,
           );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        } else {
+          // No reintentar o último intento
+          if (attempt === maxRetries) {
+            console.log(
+              `💥 All ${maxRetries} attempts failed, throwing final error:`,
+              lastError,
+            );
+          }
           throw lastError;
         }
-
-        console.log(
-          `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
-          error.message,
-        );
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
       }
     }
 
     throw lastError!;
+  }
+
+  private shouldRetry(error: Error): boolean {
+    if (error instanceof HttpException) {
+      const status = error.getStatus();
+
+      if (status >= 500) {
+        return true;
+      }
+
+      if (status === 408 || status === 429) {
+        return true;
+      }
+      return false;
+    }
+    if (
+      error.message.includes('ECONNABORTED') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('timeout')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private mapLiriumError(error: any): Error {
+    if (error?.error?.error_code) {
+      const { error_code, error_msg, request_id } = error.error;
+      const statusCode = error.status || 500;
+      return new HttpException(
+        {
+          error_code,
+          error_msg,
+          request_id,
+          source: 'lirium_api',
+        },
+        statusCode,
+      );
+    }
+    return new HttpException(
+      { message: error.message || 'Unknown error' },
+      500,
+    );
   }
 
   async createOrder(
