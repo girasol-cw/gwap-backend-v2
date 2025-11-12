@@ -3,7 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WalletServiceController } from './wallet-service.controller';
 import { MetricsService, globalRegistry } from './metrics.service';
 import { GetWalletsService } from './src/get-wallets.service';
-import { LiriumRequestServiceAbstract } from 'libs/shared';
+import { LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
 import { AddWalletRequestDto, AddWalletResponseDto } from './dto/add-wallet.dto';
 
 describe('WalletServiceController', () => {
@@ -11,6 +11,7 @@ describe('WalletServiceController', () => {
   let liriumRequestService: jest.Mocked<LiriumRequestServiceAbstract>;
   let metricsService: jest.Mocked<MetricsService>;
   let getWalletsService: jest.Mocked<GetWalletsService>;
+  let liriumKycService: jest.Mocked<LiriumKycServiceAbstract>;
 
   const mockAddWalletRequest: AddWalletRequestDto = {
     userType: 'individual',
@@ -75,6 +76,10 @@ describe('WalletServiceController', () => {
       getWallets: jest.fn(),
     };
 
+    const mockLiriumKycService = {
+      uploadKyc: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WalletServiceController],
       providers: [
@@ -90,6 +95,10 @@ describe('WalletServiceController', () => {
           provide: GetWalletsService,
           useValue: mockGetWalletsService,
         },
+        {
+          provide: LiriumKycServiceAbstract,
+          useValue: mockLiriumKycService,
+        },
       ],
     }).compile();
 
@@ -97,6 +106,7 @@ describe('WalletServiceController', () => {
     liriumRequestService = module.get(LiriumRequestServiceAbstract);
     metricsService = module.get(MetricsService);
     getWalletsService = module.get(GetWalletsService);
+    liriumKycService = module.get(LiriumKycServiceAbstract);
   });
 
   it('should be defined', () => {

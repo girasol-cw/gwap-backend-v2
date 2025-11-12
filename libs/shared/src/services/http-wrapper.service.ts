@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
@@ -6,6 +6,7 @@ import { TokenLiriumServiceAbstract } from './token-lirium.service';
 import { LiriumErrorDto } from '../dto/lirium-error.dto';
 import { DatabaseService } from './database.service';
 import { RequestLogDto } from '../dto/request-log.dto';
+import { LiriumApiException } from '../exceptions/lirium-api.exception';
 
 
 export interface HttpWrapperConfig {
@@ -42,9 +43,7 @@ export class HttpWrapperService {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  /**
-   * Performs a GET request with automatic token
-   */
+
   async get<T = any>(
     url: string,
     config?: HttpWrapperConfig,
@@ -85,7 +84,7 @@ export class HttpWrapperService {
         status_code: error.response?.status?.toString() || '500',
       });
 
-      throw errorHandle;
+      throw this.createHttpException(errorHandle);
     }
   }
 
@@ -131,7 +130,7 @@ export class HttpWrapperService {
         status_code: error.response?.status?.toString() || '500',
       });
 
-      throw errorHandle;
+      throw this.createHttpException(errorHandle);
     }
   }
 
@@ -149,9 +148,13 @@ export class HttpWrapperService {
 
       // Build default headers
       const defaultHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
+     
         Authorization: `Bearer ${token}`,
       };
+
+      if (!config?.headers || !config.headers['Content-Type']) {
+        defaultHeaders['Content-Type'] = 'application/json';
+      }
 
       // Combine default headers with provided ones
       const headers = {
@@ -252,8 +255,33 @@ export class HttpWrapperService {
         status_code: error.response?.status?.toString() || '500',
       });
 
-      throw error;
+      throw this.createHttpException(error);
     }
+  }
+
+
+  private createHttpException(errorResponse: HttpWrapperErrorResponse): HttpException {
+    const { error, status } = errorResponse;
+    
+    // Use LiriumApiException if we have error details
+    if (error.error_code && error.error_msg) {
+      return new LiriumApiException(
+        error.error_code,
+        error.error_msg,
+        error.request_id || 'unknown',
+        status
+      );
+    }
+
+    // Fallback to generic HttpException
+    return new HttpException(
+      {
+        error_code: error.error_code || 'internal_error',
+        error_msg: error.error_msg || 'Unknown error occurred',
+        request_id: error.request_id || 'unknown',
+      },
+      status
+    );
   }
 
   /**

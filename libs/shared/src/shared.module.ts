@@ -10,6 +10,8 @@ import {
 import { HttpWrapperService } from './services/http-wrapper.service';
 import { DatabaseService } from './services/database.service';
 import { LiriumRequestServiceAbstract } from './interfaces/lirium-request.service.abstract';
+import { LiriumKycService } from './services/lirium-kyc.service';
+import { LiriumKycServiceAbstract } from './interfaces/lirium-kyc.service.abstract';
 
 const tokenLiriumProvider: Provider = {
   provide: TokenLiriumServiceAbstract,
@@ -21,10 +23,15 @@ const liriumRequestProvider: Provider = {
   useClass: LiriumRequestService,
 };
 
+const liriumKycProvider: Provider = {
+  provide: LiriumKycServiceAbstract,
+  useClass: LiriumKycService,
+};
+
 @Global()
 @Module({
   imports: [HttpModule],
-  providers: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService],
-  exports: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService],
+  providers: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService, liriumKycProvider],
+  exports: [liriumRequestProvider, tokenLiriumProvider, HttpWrapperService, DatabaseService, liriumKycProvider],
 })
 export class SharedModule {}

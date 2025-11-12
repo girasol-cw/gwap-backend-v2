@@ -245,6 +245,10 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   }
 
   private mapLiriumError(error: any): Error {
+    if (error instanceof HttpException) {
+      return error;
+    }
+
     if (error?.error?.error_code) {
       const { error_code, error_msg, request_id } = error.error;
       const statusCode = error.status || 500;
