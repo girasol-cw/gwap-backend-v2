@@ -17,9 +17,9 @@ import { AddWalletRequestDto, AddWalletResponseDto, ErrorResponseDto } from './d
 import { globalRegistry, MetricsService } from './metrics.service';
 import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import { GetWalletsService } from './src/get-wallets.service';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiHeader } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { LiriumFileDto, LiriumFileType, LiriumKycServiceAbstract } from 'libs/shared';
+import { CompanyId, LiriumFileDto, LiriumFileType, LiriumKycServiceAbstract, SkipCompanyId } from 'libs/shared';
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
@@ -35,6 +35,7 @@ export class WalletServiceController {
   ) { }
 
   @Post('addWallet')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
     summary: 'Create a new wallet for a user from Girasol',
     description: 'Creates a new wallet for the specified user with all required KYC information'
@@ -59,10 +60,11 @@ export class WalletServiceController {
     type: ErrorResponseDto,
   })
   async addWallet(
+    @CompanyId() companyId: string,
     @Body() body: AddWalletRequestDto,
   ): Promise<{ message: string; data: AddWalletResponseDto }> {
     try {
-      const result = await this.liriumRequestService.createCustomer(body);
+      const result = await this.liriumRequestService.createCustomer(body, companyId);
 
       return {
         message:
@@ -77,6 +79,7 @@ export class WalletServiceController {
   }
 
   @Get('wallet/:userId')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
     summary: 'Get wallet information for a user',
     description: 'Retrieves wallet addresses and information for the specified user ID'
@@ -108,10 +111,11 @@ export class WalletServiceController {
     type: ErrorResponseDto,
   })
   async getWallet(
+    @CompanyId() companyId: string,
     @Param('userId') userId: string,
   ): Promise<{ message: string; data: AddWalletResponseDto }> {
     try {
-      const result = await this.getWalletsService.getWallets(userId);
+      const result = await this.getWalletsService.getWallets(userId, companyId);
       return {
         message:
           result.address == null || result.address.length === 0
@@ -129,6 +133,7 @@ export class WalletServiceController {
   }
 
   @Get('metrics')
+  @SkipCompanyId()
   @Header('Content-Type', globalRegistry.contentType)
   @ApiOperation({
     summary: 'Get Prometheus metrics',
@@ -147,6 +152,7 @@ export class WalletServiceController {
   }
 
   @Post('kyc/:customerId/upload')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @HttpCode(201)
   @UseInterceptors(
     FileInterceptor('file', {
@@ -172,6 +178,7 @@ export class WalletServiceController {
     description: 'Invalid request parameters',
   })
   async uploadKyc(
+    @CompanyId() _companyId: string,
     @Param('customerId') customerId: string,
     @UploadedFile() file: any,
     @Body('file_type') fileType:string ,

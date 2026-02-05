@@ -1,12 +1,14 @@
 import { Controller, HttpStatus, Post } from '@nestjs/common';
 import { ListenerService } from './services/listener.service';
-import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
+import { CompanyId } from 'libs/shared';
 
 @Controller()
 export class DepositListenerController {
   constructor(private readonly listenerService: ListenerService) {}
 
   @Post('listen')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({ 
     summary: 'Start deposit listening process',
     description: 'Initiates the deposit listening service to process incoming deposits and execute all necessary steps'
@@ -39,9 +41,9 @@ export class DepositListenerController {
       }
     }
   })
-  async listen(): Promise<{ message: string }> {
+  async listen(@CompanyId() companyId: string): Promise<{ message: string }> {
     try {
-      await this.listenerService.listen();
+      await this.listenerService.listen(companyId);
       return { message: '✅ All steps completed successfully' };
     } catch (error: any) {
       return { message: `❌ Error during listen: ${error.message}` };

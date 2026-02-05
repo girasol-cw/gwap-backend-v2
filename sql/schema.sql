@@ -1,6 +1,7 @@
--- users
+-- users (company_id: multi-tenant isolation)
 CREATE TABLE users (
   user_id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL,
   girasol_account_id TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   status text null,
@@ -29,17 +30,18 @@ CREATE TABLE users (
 -- wallets
 CREATE TABLE wallets (
   id TEXT NOT NULL PRIMARY KEY,
+  company_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   deposit_addr TEXT NOT NULL,
   network TEXT NOT NULL,
   currency TEXT NULL,
   asset_type TEXT NULL,
-
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE deposits (
   order_id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   erc20_amount TEXT NOT NULL,
   confirmed BOOLEAN DEFAULT FALSE, 
@@ -62,6 +64,7 @@ CREATE TABLE requests (
 
 CREATE TABLE orders (
   id TEXT NOT NULL,
+  company_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   reference_id TEXT NOT NULL,
   operation TEXT NOT NULL,
@@ -81,16 +84,19 @@ CREATE TABLE orders (
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_company_id ON wallets (company_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);
 
-
 CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits (user_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_company_id ON deposits (company_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_confirmed ON deposits (confirmed);
 
 CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
   ON deposits (order_id) WHERE confirmed = false;
 
+CREATE INDEX IF NOT EXISTS idx_orders_company_id ON orders (company_id);
 CREATE INDEX IF NOT EXISTS idx_requests_status_code ON requests (status_code);
 CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests (created_at);
 

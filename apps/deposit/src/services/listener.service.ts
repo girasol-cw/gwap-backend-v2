@@ -18,39 +18,38 @@ export class ListenerService {
   ) {}
 
   private readonly SQL = {
-    getCustomers: 'SELECT user_id FROM Users ',
-    saveDeposit: `INSERT INTO deposits (order_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5)`,
-    updateDeposit: `UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3`,
+    getCustomers: 'SELECT user_id FROM users WHERE company_id = $1',
+    saveDeposit: `INSERT INTO deposits (order_id, company_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5, $6)`,
+    updateDeposit: `UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3 AND company_id = $4`,
   };
 
-  async listen() {
+  async listen(companyId: string) {
     this.logger.log('Starting listener');
-    await this.process();
-
+    await this.process(companyId);
     this.logger.log('Listener finished');
   }
 
-  private async process() {
-    const customers = await this.getCustomers();
+  private async process(companyId: string) {
+    const customers = await this.getCustomers(companyId);
     for (const customer of customers) {
       this.logger.log(`Getting customer account for ${customer}`);
       const customerAccount =
         await this.liriumService.getCustomerAccount(customer);
       if (customerAccount.accounts && customerAccount.accounts.length > 0) {
         for (const account of customerAccount.accounts) {
-          await this.createDeposit(customer, account);
+          await this.createDeposit(customer, account, companyId);
         }
       }
     }
   }
 
-  private async getCustomers(): Promise<string[]> {
+  private async getCustomers(companyId: string): Promise<string[]> {
     this.logger.log('Getting customers');
-    const result = await this.dbService.pool.query(this.SQL.getCustomers, []);
+    const result = await this.dbService.pool.query(this.SQL.getCustomers, [companyId]);
     return result.rows.map((row) => row.user_id);
   }
 
-  private async createDeposit(customer: string, asset: AssetDto) {
+  private async createDeposit(customer: string, asset: AssetDto, companyId: string) {
     let value = Number(asset.amount);
     if (value <= 0) {
       this.logger.log(`Skipping deposit for ${customer} because amount is 0`);
@@ -75,8 +74,8 @@ export class ListenerService {
       console.log('lirium-Order-Request', liriumOrder);
       liriumOrder.currency = asset.currency ?? '';
       const order = await this.liriumService.createOrder(liriumOrder);
-      await this.saveDeposit(customer, order);
-      await this.confirmDeposit(customer, order);
+      await this.saveDeposit(customer, order, companyId);
+      await this.confirmDeposit(customer, order, companyId);
     } catch (error) {
       this.logger.error(
         `Error creating deposit for ${customer} ${asset}`,
@@ -89,6 +88,7 @@ export class ListenerService {
   private async confirmDeposit(
     customer: string,
     order: LiriumOrderResponseDto,
+    companyId: string,
   ) {
     this.logger.log(`Confirming deposit for ${customer} `);
     console.log('order', order);
@@ -103,7 +103,7 @@ export class ListenerService {
     console.log(`Lirium order confirm request ${liriumOrder}`);
     try {
       const confirmedOrder = await this.liriumService.confirmOrder(liriumOrder);
-      await this.updateDeposit(customer, confirmedOrder);
+      await this.updateDeposit(customer, confirmedOrder, companyId);
     } catch (error) {
       this.logger.error(
         `Error confirming deposit for ${customer} ${order}`,
@@ -114,22 +114,24 @@ export class ListenerService {
     }
   }
 
-  private async saveDeposit(customer: string, order: LiriumOrderResponseDto) {
+  private async saveDeposit(customer: string, order: LiriumOrderResponseDto, companyId: string) {
     this.logger.log(`Saving deposit for ${customer} ${order}`);
     await this.dbService.pool.query(this.SQL.saveDeposit, [
       order.id,
+      companyId,
       customer,
       order.asset.amount,
       order.state === 'confirmed',
       order.sell?.settlement?.amount,
     ]);
   }
-  private async updateDeposit(customer: string, order: LiriumOrderResponseDto) {
+  private async updateDeposit(customer: string, order: LiriumOrderResponseDto, companyId: string) {
     this.logger.log(`Updating deposit for ${customer} ${order}`);
     await this.dbService.pool.query(this.SQL.updateDeposit, [
       true,
       order.sell?.settlement?.amount,
       order.id,
+      companyId,
     ]);
   }
 }

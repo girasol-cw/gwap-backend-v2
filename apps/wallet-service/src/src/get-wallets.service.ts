@@ -10,15 +10,15 @@ export class GetWalletsService {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  async getWallets(accountId: string): Promise<AddWalletResponseDto> {
-    const customer = await this.getCustomer(accountId);
+  async getWallets(accountId: string, companyId: string): Promise<AddWalletResponseDto> {
+    const customer = await this.getCustomer(accountId, companyId);
     return this.liriumRequestService.getWallets(customer);
   }
 
-  private async getCustomer(accountId: string): Promise<string> {
+  private async getCustomer(accountId: string, companyId: string): Promise<string> {
     const result = await this.databaseService.pool.query<string[]>(
-      'SELECT user_id FROM users WHERE girasol_account_id = $1',
-      [accountId],
+      'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+      [accountId, companyId],
     );
 
     if (result.rows.length === 0) {

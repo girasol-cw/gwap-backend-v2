@@ -58,6 +58,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
   async createCustomer(
     customer: AddWalletRequestDto,
+    companyId: string,
   ): Promise<AddWalletResponseDto> {
     const requestBody: LiriumRequestDto = {
       type: customer.userType,
@@ -89,7 +90,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       },
     };
 
-    const customerDoesExist = await this.verifyCustomerDoesExist(customer);
+    const customerDoesExist = await this.verifyCustomerDoesExist(customer, companyId);
     if (customerDoesExist) {
       throw new BadRequestException(
         `Customer with girasol account id ${customer.accountId} already exists`,
@@ -104,12 +105,12 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     const responseBody = response.data as LiriumRequestDto;
     const responseJson = JSON.stringify(response.data);
     responseBody.customer = responseJson;
-    this.saveCustomer(responseBody, customer.accountId);
+    this.saveCustomer(responseBody, customer.accountId, companyId);
 
     responseDto.email = responseBody.contact.email;
     responseDto.accountId = responseBody.id ?? '';
     const address = await this.getWallets(responseBody.id!);
-    await this.saveWallet(address, responseBody.id!);
+    await this.saveWallet(address, responseBody.id!, companyId);
     address.userId = responseBody.id!;
     console.log('address to return', address);
     return address;
@@ -117,10 +118,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
   private async verifyCustomerDoesExist(
     customer: AddWalletRequestDto,
+    companyId: string,
   ): Promise<boolean> {
     const result = await this.databaseService.pool.query<string[]>(
-      'SELECT user_id FROM users WHERE girasol_account_id = $1',
-      [customer.accountId],
+      'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+      [customer.accountId, companyId],
     );
     return result.rows.length > 0;
   }
@@ -128,13 +130,15 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   private saveCustomer(
     customer: LiriumRequestDto,
     girasolAccountId: string,
+    companyId: string,
   ): void {
     this.databaseService.pool.query(
-      'INSERT INTO users (user_id, girasol_account_id, status, label,' +
+      'INSERT INTO users (user_id, company_id, girasol_account_id, status, label,' +
         'first_name, middle_name, last_name, date_of_birth, national_id_country, national_id_type, national_id,' +
-        'citizenship, address_line1, address_line2, city, state, country, zip_code, tax_id, tax_country, cellphone, email, customer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,$22,$23)',
+        'citizenship, address_line1, address_line2, city, state, country, zip_code, tax_id, tax_country, cellphone, email, customer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)',
       [
         customer.id,
+        companyId,
         girasolAccountId,
         customer.state,
         customer.profile.label,
@@ -164,12 +168,14 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   private async saveWallet(
     wallets: AddWalletResponseDto,
     customerId: string,
+    companyId: string,
   ): Promise<void> {
     for (const wallet of wallets.address) {
       await this.databaseService.pool.query(
-        'INSERT INTO wallets (id, user_id, deposit_addr, network, currency, asset_type) VALUES ($1, $2, $3, $4, $5, $6)',
+        'INSERT INTO wallets (id, company_id, user_id, deposit_addr, network, currency, asset_type) VALUES ($1, $2, $3, $4, $5, $6, $7)',
         [
           this.generateWalletId(),
+          companyId,
           customerId,
           wallet.address,
           wallet.network,

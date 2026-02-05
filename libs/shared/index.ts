@@ -12,3 +12,4 @@ export * from './src/dto/request-log.dto';
 export * from './src/dto/lirium-file.dto';
 export * from './src/interfaces/lirium-kyc.service.abstract';
 export * from './src/services/lirium-kyc.service';
+export * from './src/common';

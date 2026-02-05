@@ -33,35 +33,35 @@ export class OrderService {
   };
 
   private readonly SQL_QUERIES = {
-    getCustomerId: 'SELECT user_id FROM users WHERE girasol_account_id = $1',
-    getOrder:'SELECT ASSET,SETTLEMENT,STATUS, REFERENCE_ID FROM orders WHERE id = $1',
+    getCustomerId: 'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+    getOrder: 'SELECT ASSET,SETTLEMENT,STATUS, REFERENCE_ID FROM orders WHERE id = $1 AND company_id = $2',
     saveOrder:
-      'INSERT INTO orders (id, user_id, reference_id, operation, asset, ' +
+      'INSERT INTO orders (id, company_id, user_id, reference_id, operation, asset, ' +
       'status, created_at, order_body, order_response, network, fees, destination_type, ' +
-      ' destination_value, destination_amount, settlement, requires_confirmation_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)',
-    confirmOrder: 'UPDATE orders SET status = $1 WHERE id = $2',
+      ' destination_value, destination_amount, settlement, requires_confirmation_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+    confirmOrder: 'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3',
   };
 
-  async createOrder(order: OrderRequestDto): Promise<LiriumOrderResponseDto> {
+  async createOrder(order: OrderRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
     this.logger.log(`Creating order ${order}`);
-    const customerId = await this.getCustomerId(order.userId);
+    const customerId = await this.getCustomerId(order.userId, companyId);
     order.userId = customerId;
     const liriumOrder = this.buildLiriumOrder(order);
     console.log('liriumOrder', liriumOrder);
     const orderResponse :LiriumOrderResponseDto= await this.liriumService.createOrder(liriumOrder);
     console.log('orderResponse', orderResponse);
-    await this.saveOrder(liriumOrder, orderResponse);
+    await this.saveOrder(liriumOrder, orderResponse, companyId);
     return orderResponse;
   }
 
-  async confirmOrder(order: OrderConfirmRequestDto): Promise<LiriumOrderResponseDto> {
+  async confirmOrder(order: OrderConfirmRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
     this.logger.log(`Confirming order with id ${order.orderId}`);
-    const customerId = await this.getCustomerId(order.userId);
+    const customerId = await this.getCustomerId(order.userId, companyId);
     if (!order.orderId) {
       throw new BadRequestException('Lirium Order ID is required');
     }
     order.userId = customerId;
-    const orderDto = await this.getOrder(order.orderId!);
+    const orderDto = await this.getOrder(order.orderId!, companyId);
 
     let currency = orderDto.settlement?.currency;
     let amount = orderDto.settlement?.amount;
@@ -80,14 +80,14 @@ export class OrderService {
     };
    
     const orderResponse = await this.liriumService.confirmOrder(liriumOrder);
-    await this.updateOrder(orderResponse);
+    await this.updateOrder(orderResponse, companyId);
     return orderResponse;
   }
 
-  private async getOrder(orderId: string): Promise<OrderModel> {
+  private async getOrder(orderId: string, companyId: string): Promise<OrderModel> {
     const result = await this.dbService.pool.query<OrderModel>(
       this.SQL_QUERIES.getOrder,
-      [orderId],
+      [orderId, companyId],
     );
     if (result.rows.length === 0) {
       throw new NotFoundException(`Order with id ${orderId} not found`);
@@ -97,17 +97,19 @@ export class OrderService {
     
     return orderModel;
   }
-  private async updateOrder(order: LiriumOrderResponseDto): Promise<void> {
+  private async updateOrder(order: LiriumOrderResponseDto, companyId: string): Promise<void> {
     this.logger.log(`Updating order ${order}`);
     await this.dbService.pool.query(this.SQL_QUERIES.confirmOrder, [
       order.state,
       order.id,
+      companyId,
     ]);
   }
 
   private async saveOrder(
     order: LiriumOrderRequestDto,
     orderResponse: LiriumOrderResponseDto,
+    companyId: string,
   ) {
     this.logger.log(`Saving order ${orderResponse}`);
     this.logger.log(`Order body ${order}`);
@@ -120,13 +122,13 @@ export class OrderService {
     } else if(order.operation === OperationType.BUY) {
       settlement = orderResponse.buy?.settlement;
       requiresConfirmationCode = order.buy?.requiresConfirmationCode ?? false;
-    } 
+    }
 
-
-    const result = await this.dbService.pool.query<string[]>(
+    await this.dbService.pool.query<string[]>(
       this.SQL_QUERIES.saveOrder,
       [
         orderResponse.id,
+        companyId,
         order.customer_id,
         order.reference_id,
         order.operation,
@@ -186,10 +188,10 @@ export class OrderService {
     return liriumOrder;
   }
 
-  private async getCustomerId(girasolAccountId: string): Promise<string> {
+  private async getCustomerId(girasolAccountId: string, companyId: string): Promise<string> {
     const result = await this.dbService.pool.query<string[]>(
       this.SQL_QUERIES.getCustomerId,
-      [girasolAccountId],
+      [girasolAccountId, companyId],
     );
     if (result.rows.length === 0) {
       throw new NotFoundException(
