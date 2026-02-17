@@ -82,7 +82,6 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         tax_id: customer.taxId,
         tax_country: customer.taxCountryIso2,
         cellphone: customer.cellphone,
-        name: customer.name,
       },
       contact: {
         email: customer.email,
