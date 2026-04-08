@@ -1,10 +1,11 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import {
+  LiriumCustomerAccountResponseDto,
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
 } from 'apps/deposit/src/dto/lirium.dto';
-import { LiriumCustomerAccountResponseDto } from 'apps/deposit/src/dto/lirium.dto';
+
 import {
   AddWalletRequestDto,
   AddWalletResponseDto,
@@ -133,8 +134,8 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   ): void {
     this.databaseService.pool.query(
       'INSERT INTO users (user_id, company_id, girasol_account_id, status, label,' +
-        'first_name, middle_name, last_name, date_of_birth, national_id_country, national_id_type, national_id,' +
-        'citizenship, address_line1, address_line2, city, state, country, zip_code, tax_id, tax_country, cellphone, email, customer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)',
+      'first_name, middle_name, last_name, date_of_birth, national_id_country, national_id_type, national_id,' +
+      'citizenship, address_line1, address_line2, city, state, country, zip_code, tax_id, tax_country, cellphone, email, customer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)',
       [
         customer.id,
         companyId,
@@ -295,5 +296,24 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       );
       return response.data;
     });
+  }
+  async getOrder(
+    customerId: string,
+    orderId: string,
+  ): Promise<LiriumOrderResponseDto> {
+    const response = await this.httpService.get<LiriumOrderResponseDto>(
+      `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}`,
+    );
+    return response.data;
+  }
+
+  async resendOrderConfirmationCode(
+    customerId: string,
+    orderId: string,
+  ): Promise<void> {
+    await this.httpService.post(
+      `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}/resend_code`,
+      {},
+    );
   }
 }

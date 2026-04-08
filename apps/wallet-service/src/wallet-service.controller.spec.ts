@@ -1,84 +1,41 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { WalletServiceController } from './wallet-service.controller';
-import { MetricsService, globalRegistry } from './metrics.service';
-import { GetWalletsService } from './src/get-wallets.service';
+import { MetricsService } from './metrics.service';
 import { LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
-import { AddWalletRequestDto, AddWalletResponseDto } from './dto/add-wallet.dto';
+import { GetWalletsService } from './services/get-wallets.service';
+import { WithdrawService } from './services/withdraw.service';
 
 describe('WalletServiceController', () => {
   let controller: WalletServiceController;
-  let liriumRequestService: jest.Mocked<LiriumRequestServiceAbstract>;
-  let metricsService: jest.Mocked<MetricsService>;
-  let getWalletsService: jest.Mocked<GetWalletsService>;
-  let liriumKycService: jest.Mocked<LiriumKycServiceAbstract>;
 
-  const mockAddWalletRequest: AddWalletRequestDto = {
-    userType: 'individual',
-    userId: 'test-user-123',
-    email: 'test@example.com',
-    accountId: 'account-123',
-    label: 'Test Wallet',
-    firstName: 'John',
-    middleName: 'Doe',
-    lastName: 'Smith',
-    birthDate: '1990-01-01',
-    nationalIdCountryIso2: 'US',
-    nationalIdType: 'SSN',
-    nationalId: '123-45-6789',
-    citizenshipIso2: 'US',
-    addressLine1: '123 Main St',
-    addressLine2: 'Apt 1',
-    city: 'New York',
-    state: 'NY',
-    countryIso2: 'US',
-    zipCode: '10001',
-    taxId: '12-3456789',
-    taxCountryIso2: 'US',
-    cellphone: '+1234567890',
-    name: 'John Smith',
+  const mockLiriumRequestService: jest.Mocked<Partial<LiriumRequestServiceAbstract>> = {
+    createCustomer: jest.fn(),
   };
 
-  const mockAddWalletResponse: AddWalletResponseDto = {
-    email: 'test@example.com',
-    accountId: 'account-123',
-    userId: 'test-user-123',
-    address: [
-      {
-        address: '0x1234567890abcdef',
-        network: 'ethereum',
-        currency: 'ETH',
-        asset_type: 'native',
-      },
-    ],
-    errorChainIds: [],
+  const mockMetricsService: jest.Mocked<Partial<MetricsService>> = {
+    getMetrics: jest.fn(),
   };
 
-  const mockAddWalletResponseWithError: AddWalletResponseDto = {
-    email: 'test@example.com',
-    accountId: 'account-123',
-    userId: 'test-user-123',
-    address: [],
-    errorChainIds: ['1', '137'],
+  const mockGetWalletsService: jest.Mocked<Partial<GetWalletsService>> = {
+    getWallets: jest.fn(),
   };
+
+  const mockLiriumKycService: jest.Mocked<Partial<LiriumKycServiceAbstract>> = {
+    uploadKyc: jest.fn(),
+  };
+
+  const mockWithdrawService: jest.Mocked<Partial<WithdrawService>> = {
+    createWithdraw: jest.fn(),
+    confirmWithdraw: jest.fn(),
+    getWithdrawState: jest.fn(),
+    resendWithdrawConfirmationCode: jest.fn(),
+  };
+
+  const companyId: string = 'company-123';
 
   beforeEach(async () => {
-    const mockLiriumRequestService = {
-      createCustomer: jest.fn(),
-      getWallets: jest.fn(),
-    };
-
-    const mockMetricsService = {
-      getMetrics: jest.fn(),
-    };
-
-    const mockGetWalletsService = {
-      getWallets: jest.fn(),
-    };
-
-    const mockLiriumKycService = {
-      uploadKyc: jest.fn(),
-    };
+    jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WalletServiceController],
@@ -99,174 +56,438 @@ describe('WalletServiceController', () => {
           provide: LiriumKycServiceAbstract,
           useValue: mockLiriumKycService,
         },
+        {
+          provide: WithdrawService,
+          useValue: mockWithdrawService,
+        },
       ],
     }).compile();
 
     controller = module.get<WalletServiceController>(WalletServiceController);
-    liriumRequestService = module.get(LiriumRequestServiceAbstract);
-    metricsService = module.get(MetricsService);
-    getWalletsService = module.get(GetWalletsService);
-    liriumKycService = module.get(LiriumKycServiceAbstract);
-  });
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
   });
 
   describe('addWallet', () => {
-    it('should create a wallet successfully and return success message', async () => {
-      // Arrange
-      liriumRequestService.createCustomer.mockResolvedValue(mockAddWalletResponse);
+    const mockAddWalletRequest = {
+      accountId: 'girasol-account-1',
+      userId: 'user-1',
+      userType: 'individual',
+      label: 'Test User',
+      firstName: 'Sebastian',
+      middleName: '',
+      lastName: 'Ortiz',
+      birthDate: '1995-01-01',
+      nationalIdCountryIso2: 'CO',
+      nationalId: '123456789',
+      citizenshipIso2: 'CO',
+      addressLine1: 'Street 123',
+      addressLine2: '',
+      city: 'Medellin',
+      state: 'Antioquia',
+      countryIso2: 'CO',
+      zipCode: '050001',
+      taxId: '123456789',
+      taxCountryIso2: 'CO',
+      cellphone: '+573001112233',
+      email: 'test@example.com',
+    };
 
-      // Act
-      const result = await controller.addWallet(mockAddWalletRequest);
+    it('should create wallet successfully with success message', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: [
+          {
+            address: '0xabc123',
+            network: 'polygon',
+            currency: 'USDC',
+            asset_type: 'crypto',
+          },
+        ],
+      };
 
-      // Assert
+      (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
+
+      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+
       expect(result).toEqual({
         message: 'Success',
-        data: mockAddWalletResponse,
+        data: serviceResponse,
       });
-      expect(liriumRequestService.createCustomer).toHaveBeenCalledWith(mockAddWalletRequest);
+
+      expect(mockLiriumRequestService.createCustomer).toHaveBeenCalledWith(
+        mockAddWalletRequest,
+        companyId,
+      );
     });
 
-    it('should return warning message when address is null', async () => {
-      // Arrange
-      const responseWithNullAddress = { ...mockAddWalletResponse, address: null as any };
-      liriumRequestService.createCustomer.mockResolvedValue(responseWithNullAddress);
+    it('should return warning when created wallet has no addresses', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: [],
+      };
 
-      // Act
-      const result = await controller.addWallet(mockAddWalletRequest);
+      (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
 
-      // Assert
+      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+
       expect(result).toEqual({
         message: 'Warning',
-        data: responseWithNullAddress,
+        data: serviceResponse,
       });
     });
 
-    it('should return warning message when address is empty array', async () => {
-      // Arrange
-      const responseWithEmptyAddress = { ...mockAddWalletResponse, address: [] };
-      liriumRequestService.createCustomer.mockResolvedValue(responseWithEmptyAddress);
+    it('should return warning when created wallet address is null', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: null,
+      };
 
-      // Act
-      const result = await controller.addWallet(mockAddWalletRequest);
+      (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
 
-      // Assert
+      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+
       expect(result).toEqual({
         message: 'Warning',
-        data: responseWithEmptyAddress,
+        data: serviceResponse,
       });
     });
 
-    it('should throw BadRequestException when service throws error', async () => {
-      // Arrange
-      const error = new Error('Service error');
-      liriumRequestService.createCustomer.mockRejectedValue(error);
+    it('should throw BadRequestException when createCustomer fails', async () => {
+      (mockLiriumRequestService.createCustomer as jest.Mock).mockRejectedValue(
+        new Error('Invalid request'),
+      );
 
-      // Act & Assert
-      await expect(controller.addWallet(mockAddWalletRequest)).rejects.toThrow(BadRequestException);
-      expect(liriumRequestService.createCustomer).toHaveBeenCalledWith(mockAddWalletRequest);
+      await expect(
+        controller.addWallet(companyId, mockAddWalletRequest as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getWallet', () => {
-    it('should get wallet successfully and return success message', async () => {
-      // Arrange
-      const userId = 'test-user-123';
-      getWalletsService.getWallets.mockResolvedValue(mockAddWalletResponse);
+    const userId: string = 'user-1';
 
-      // Act
-      const result = await controller.getWallet(userId);
+    it('should return wallet successfully with success message', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: [
+          {
+            address: '0xabc123',
+            network: 'polygon',
+            currency: 'USDC',
+            asset_type: 'crypto',
+          },
+        ],
+      };
 
-      // Assert
+      (mockGetWalletsService.getWallets as jest.Mock).mockResolvedValue(serviceResponse);
+
+      const result = await controller.getWallet(companyId, userId);
+
       expect(result).toEqual({
         message: 'Success',
-        data: mockAddWalletResponse,
+        data: serviceResponse,
       });
-      expect(getWalletsService.getWallets).toHaveBeenCalledWith(userId);
+
+      expect(mockGetWalletsService.getWallets).toHaveBeenCalledWith(
+        userId,
+        companyId,
+      );
     });
 
-    it('should return warning message when address is null', async () => {
-      // Arrange
-      const userId = 'test-user-123';
-      const responseWithNullAddress = { ...mockAddWalletResponse, address: null as any };
-      getWalletsService.getWallets.mockResolvedValue(responseWithNullAddress);
+    it('should return warning when wallet has no addresses', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: [],
+      };
 
-      // Act
-      const result = await controller.getWallet(userId);
+      (mockGetWalletsService.getWallets as jest.Mock).mockResolvedValue(serviceResponse);
 
-      // Assert
+      const result = await controller.getWallet(companyId, userId);
+
       expect(result).toEqual({
         message: 'Warning',
-        data: responseWithNullAddress,
+        data: serviceResponse,
       });
     });
 
-    it('should return warning message when address is empty array', async () => {
-      // Arrange
-      const userId = 'test-user-123';
-      const responseWithEmptyAddress = { ...mockAddWalletResponse, address: [] };
-      getWalletsService.getWallets.mockResolvedValue(responseWithEmptyAddress);
+    it('should return warning when wallet address is null', async () => {
+      const serviceResponse = {
+        accountId: 'lirium-user-1',
+        email: 'test@example.com',
+        address: null,
+      };
 
-      // Act
-      const result = await controller.getWallet(userId);
+      (mockGetWalletsService.getWallets as jest.Mock).mockResolvedValue(serviceResponse);
 
-      // Assert
+      const result = await controller.getWallet(companyId, userId);
+
       expect(result).toEqual({
         message: 'Warning',
-        data: responseWithEmptyAddress,
+        data: serviceResponse,
       });
     });
 
-    it('should throw NotFoundException when user is not found', async () => {
-      // Arrange
-      const userId = 'non-existent-user';
-      const error = new Error('user with id non-existent-user not found');
-      getWalletsService.getWallets.mockRejectedValue(error);
+    it('should throw NotFoundException when underlying service says not found', async () => {
+      (mockGetWalletsService.getWallets as jest.Mock).mockRejectedValue(
+        new Error('user not found'),
+      );
 
-      // Act & Assert
-      await expect(controller.getWallet(userId)).rejects.toThrow(NotFoundException);
-      await expect(controller.getWallet(userId)).rejects.toThrow(`user with id ${userId} not found`);
+      await expect(
+        controller.getWallet(companyId, userId),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        controller.getWallet(companyId, userId),
+      ).rejects.toThrow(`user with id ${userId} not found`);
     });
 
-    it('should throw BadRequestException for other errors', async () => {
-      // Arrange
-      const userId = 'test-user-123';
-      const error = new Error('Database connection error');
-      getWalletsService.getWallets.mockRejectedValue(error);
+    it('should throw BadRequestException for generic service errors', async () => {
+      (mockGetWalletsService.getWallets as jest.Mock).mockRejectedValue(
+        new Error('generic failure'),
+      );
 
-      // Act & Assert
-      await expect(controller.getWallet(userId)).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.getWallet(companyId, userId),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getMetrics', () => {
-    it('should return metrics string', async () => {
-      // Arrange
-      const expectedMetrics = 'wallet_deploy_fail_total{chainId="1",userId="test",reason="error"} 1\n';
-      metricsService.getMetrics.mockResolvedValue(expectedMetrics);
+    it('should return prometheus metrics', async () => {
+      (mockMetricsService.getMetrics as jest.Mock).mockResolvedValue(
+        '# HELP test_metric test\n# TYPE test_metric counter\ntest_metric 1',
+      );
 
-      // Act
       const result = await controller.getMetrics();
 
-      // Assert
-      expect(result).toBe(expectedMetrics);
-      expect(metricsService.getMetrics).toHaveBeenCalled();
+      expect(result).toBe(
+        '# HELP test_metric test\n# TYPE test_metric counter\ntest_metric 1',
+      );
+      expect(mockMetricsService.getMetrics).toHaveBeenCalled();
+    });
+  });
+
+  describe('uploadKyc', () => {
+    it('should map uploaded file into lirium dto and call uploadKyc', async () => {
+      const file = {
+        originalname: 'document.pdf',
+        buffer: Buffer.from('test'),
+      };
+
+      await controller.uploadKyc(
+        companyId,
+        'customer-123',
+        file,
+        'application/pdf',
+        'national_id_front' as any,
+      );
+
+      expect(mockLiriumKycService.uploadKyc).toHaveBeenCalledWith({
+        file_name: 'document.pdf',
+        file_type: 'application/pdf',
+        document_type: 'national_id_front',
+        user_id: 'customer-123',
+        file,
+      });
+    });
+  });
+
+  describe('createWithdraw', () => {
+    const body = {
+      currency: 'USDC',
+      assetAmount: '10.00',
+      network: 'polygon',
+      destination: {
+        type: 'crypto_currency_address',
+        value: '0xabc123',
+        amount: '9.75',
+      },
+      referenceId: 'withdraw-123',
+    };
+
+    it('should create withdraw successfully', async () => {
+      const serviceResponse = {
+        withdrawId: 'order-send-123',
+        status: 'pending',
+        requiresConfirmationCode: true,
+        expiresAt: '2026-04-08T15:00:00Z',
+      };
+
+      (mockWithdrawService.createWithdraw as jest.Mock).mockResolvedValue(serviceResponse);
+
+      const result = await controller.createWithdraw(
+        companyId,
+        'account-123',
+        body as any,
+      );
+
+      expect(result).toEqual({
+        message: 'Success',
+        data: serviceResponse,
+      });
+
+      expect(mockWithdrawService.createWithdraw).toHaveBeenCalledWith(
+        'account-123',
+        body,
+        companyId,
+      );
     });
 
-    it('should have correct content type header', async () => {
-      // Arrange
-      const expectedMetrics = 'test metrics';
-      metricsService.getMetrics.mockResolvedValue(expectedMetrics);
+    it('should propagate withdraw creation errors', async () => {
+      (mockWithdrawService.createWithdraw as jest.Mock).mockRejectedValue(
+        new BadRequestException('invalid withdraw request'),
+      );
 
-      // Act
-      const result = await controller.getMetrics();
+      await expect(
+        controller.createWithdraw(companyId, 'account-123', body as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
 
-      // Assert
-      expect(result).toBe(expectedMetrics);
-      // Note: Testing the @Header decorator would require integration tests
-      // as unit tests don't execute decorators
+  describe('confirmWithdraw', () => {
+    const body = {
+      confirmationCode: '123456',
+    };
+
+    it('should confirm withdraw successfully', async () => {
+      const serviceResponse = {
+        withdrawId: 'order-send-123',
+        status: 'processing',
+        requiresConfirmationCode: false,
+        expiresAt: '2026-04-08T15:00:00Z',
+      };
+
+      (mockWithdrawService.confirmWithdraw as jest.Mock).mockResolvedValue(serviceResponse);
+
+      const result = await controller.confirmWithdraw(
+        companyId,
+        'account-123',
+        'order-send-123',
+        body as any,
+      );
+
+      expect(result).toEqual({
+        message: 'Success',
+        data: serviceResponse,
+      });
+
+      expect(mockWithdrawService.confirmWithdraw).toHaveBeenCalledWith(
+        'account-123',
+        'order-send-123',
+        body,
+        companyId,
+      );
+    });
+
+    it('should propagate withdraw confirmation errors', async () => {
+      (mockWithdrawService.confirmWithdraw as jest.Mock).mockRejectedValue(
+        new BadRequestException('invalid confirmation code'),
+      );
+
+      await expect(
+        controller.confirmWithdraw(
+          companyId,
+          'account-123',
+          'order-send-123',
+          body as any,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getWithdrawState', () => {
+    it('should return withdraw state successfully', async () => {
+      const serviceResponse = {
+        withdrawId: 'order-send-123',
+        operation: 'send',
+        status: 'completed',
+        currency: 'USDC',
+        assetAmount: '10.00',
+        network: 'polygon',
+        destinationType: 'crypto_currency_address',
+        destinationValue: '0xabc123',
+        destinationAmount: '9.75',
+        fees: '0.25',
+        requiresConfirmationCode: false,
+        expiresAt: '2026-04-08T15:00:00Z',
+        transactionId: '0xtxhash',
+        createdAt: '2026-04-08T14:00:00Z',
+        submittedAt: '2026-04-08T14:01:00Z',
+        lastUpdatedAt: '2026-04-08T14:02:00Z',
+      };
+
+      (mockWithdrawService.getWithdrawState as jest.Mock).mockResolvedValue(serviceResponse);
+
+      const result = await controller.getWithdrawState(
+        companyId,
+        'account-123',
+        'order-send-123',
+      );
+
+      expect(result).toEqual({
+        message: 'Success',
+        data: serviceResponse,
+      });
+
+      expect(mockWithdrawService.getWithdrawState).toHaveBeenCalledWith(
+        'account-123',
+        'order-send-123',
+        companyId,
+      );
+    });
+
+    it('should propagate withdraw state errors', async () => {
+      (mockWithdrawService.getWithdrawState as jest.Mock).mockRejectedValue(
+        new NotFoundException('withdraw not found'),
+      );
+
+      await expect(
+        controller.getWithdrawState(
+          companyId,
+          'account-123',
+          'order-send-123',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('resendWithdrawConfirmationCode', () => {
+    it('should resend confirmation code successfully', async () => {
+      (mockWithdrawService.resendWithdrawConfirmationCode as jest.Mock).mockResolvedValue(
+        undefined,
+      );
+
+      await expect(
+        controller.resendWithdrawConfirmationCode(
+          companyId,
+          'account-123',
+          'order-send-123',
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(mockWithdrawService.resendWithdrawConfirmationCode).toHaveBeenCalledWith(
+        'account-123',
+        'order-send-123',
+        companyId,
+      );
+    });
+
+    it('should propagate resend confirmation code errors', async () => {
+      (mockWithdrawService.resendWithdrawConfirmationCode as jest.Mock).mockRejectedValue(
+        new InternalServerErrorException('resend failed'),
+      );
+
+      await expect(
+        controller.resendWithdrawConfirmationCode(
+          companyId,
+          'account-123',
+          'order-send-123',
+        ),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 });

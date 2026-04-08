@@ -1,24 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
-
-import {
-  LiriumOrderResponseDto,
-  LiriumCustomerAccountResponseDto,
-} from '../src/dto/lirium.dto';
 import { ListenerService } from '../src/services/listener.service';
 import { DatabaseService, LiriumRequestServiceAbstract } from 'libs/shared';
-import { AssetDto, OperationType } from '../src/dto/order.dto';
+import {
+  LiriumCustomerAccountResponseDto,
+  LiriumOrderResponseDto,
+} from '../src/dto/lirium.dto';
 
 describe('ListenerService', () => {
   let service: ListenerService;
-  let liriumService: jest.Mocked<LiriumRequestServiceAbstract>;
-  let dbService: jest.Mocked<DatabaseService>;
 
   const mockPool = {
     query: jest.fn(),
   };
 
-  const mockLiriumService = {
+  const mockLiriumService: jest.Mocked<Partial<LiriumRequestServiceAbstract>> = {
     getCustomerAccount: jest.fn(),
     createOrder: jest.fn(),
     confirmOrder: jest.fn(),
@@ -29,6 +24,8 @@ describe('ListenerService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ListenerService,
@@ -44,11 +41,6 @@ describe('ListenerService', () => {
     }).compile();
 
     service = module.get<ListenerService>(ListenerService);
-    liriumService = module.get(LiriumRequestServiceAbstract);
-    dbService = module.get(DatabaseService);
-
-    // Clear all mocks before each test
-    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -56,484 +48,326 @@ describe('ListenerService', () => {
   });
 
   describe('listen', () => {
-    it('should complete successfully', async () => {
-      // Mock getCustomers to return test data
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ user_id: 'customer1' }, { user_id: 'customer2' }],
-      });
+    it('should process customers and accounts end to end', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rows: [{ user_id: 'customer-1' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        });
 
-      // Mock getCustomerAccount to return accounts
-      const mockAccount: LiriumCustomerAccountResponseDto = {
+      const accounts: LiriumCustomerAccountResponseDto = {
         accounts: [
           {
             currency: 'BTC',
             amount: '0.001',
-          } as AssetDto,
+          },
         ],
       };
-      mockLiriumService.getCustomerAccount.mockResolvedValue(mockAccount);
 
-      // Mock createOrder
-      const mockOrder: LiriumOrderResponseDto = {
-        id: 'order123',
+      const createdOrder: LiriumOrderResponseDto = {
+        id: 'sell-order-1',
         operation: 'sell',
         state: 'pending',
         asset: {
           currency: 'BTC',
           amount: '0.001',
-        } as AssetDto,
+        },
         sell: {
-          currency: 'USD',
-          amount: '50.00',
           settlement: {
             currency: 'USD',
             amount: '50.00',
           },
-        } as AssetDto,
+        },
       };
-      mockLiriumService.createOrder.mockResolvedValue(mockOrder);
 
-      // Mock confirmOrder
-      const mockConfirmedOrder: LiriumOrderResponseDto = {
-        ...mockOrder,
+      const confirmedOrder: LiriumOrderResponseDto = {
+        ...createdOrder,
         state: 'confirmed',
       };
-      mockLiriumService.confirmOrder.mockResolvedValue(mockConfirmedOrder);
 
-      // Mock database operations
-      mockPool.query.mockResolvedValue({ rows: [] });
+      (mockLiriumService.getCustomerAccount as jest.Mock).mockResolvedValue(accounts);
+      (mockLiriumService.createOrder as jest.Mock).mockResolvedValue(createdOrder);
+      (mockLiriumService.confirmOrder as jest.Mock).mockResolvedValue(confirmedOrder);
 
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
+      await service.listen('company-123');
 
-      await service.listen();
+      expect(mockLiriumService.getCustomerAccount).toHaveBeenCalledWith('customer-1');
 
-      expect(loggerSpy).toHaveBeenCalledWith('Starting listener');
-      expect(loggerSpy).toHaveBeenCalledWith('Listener finished');
-    });
-
-    it('should handle errors gracefully', async () => {
-      // Mock getCustomers to throw an error
-      mockPool.query.mockRejectedValueOnce(new Error('Database error'));
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      // The service should throw the error since there's no error handling in listen()
-      await expect(service.listen()).rejects.toThrow('Database error');
-
-      expect(loggerSpy).toHaveBeenCalledWith('Starting listener');
-      // Listener finished should not be called when there's an error
-      expect(loggerSpy).not.toHaveBeenCalledWith('Listener finished');
-    });
-  });
-
-  describe('process', () => {
-    it('should process all customers and their accounts', async () => {
-      // Mock getCustomers
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ user_id: 'customer1' }],
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-1',
+        reference_id: expect.stringMatching(/^Sell\d{14}$/),
+        operation: 'sell',
+        asset: {
+          currency: 'BTC',
+          amount: '0.001',
+        },
+        sell: {
+          currency: 'BTC',
+          amount: '0.001',
+        },
       });
 
-      // Mock getCustomerAccount
-      const mockAccount: LiriumCustomerAccountResponseDto = {
+      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-1',
+        order_id: 'sell-order-1',
+        customer: {
+          currency: 'USD',
+          amount: '50.00',
+        },
+      });
+
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        1,
+        'SELECT user_id FROM users WHERE company_id = $1',
+        ['company-123'],
+      );
+
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        2,
+        'INSERT INTO deposits (order_id, company_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5, $6)',
+        ['sell-order-1', 'company-123', 'customer-1', '0.001', false, '50.00'],
+      );
+
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        3,
+        'UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3 AND company_id = $4',
+        [true, '50.00', 'sell-order-1', 'company-123'],
+      );
+    });
+
+    it('should skip processing when customer accounts are empty', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ user_id: 'customer-1' }],
+      });
+
+      (mockLiriumService.getCustomerAccount as jest.Mock).mockResolvedValue({
+        accounts: [],
+      });
+
+      await service.listen('company-123');
+
+      expect(mockLiriumService.getCustomerAccount).toHaveBeenCalledWith('customer-1');
+      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
+      expect(mockLiriumService.confirmOrder).not.toHaveBeenCalled();
+
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        'SELECT user_id FROM users WHERE company_id = $1',
+        ['company-123'],
+      );
+    });
+
+    it('should continue processing next customer when createOrder fails for one account', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rows: [{ user_id: 'customer-1' }, { user_id: 'customer-2' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        });
+
+      const accountsCustomer1: LiriumCustomerAccountResponseDto = {
         accounts: [
           {
             currency: 'BTC',
             amount: '0.001',
-          } as AssetDto,
+          },
+        ],
+      };
+
+      const accountsCustomer2: LiriumCustomerAccountResponseDto = {
+        accounts: [
           {
             currency: 'ETH',
-            amount: '0.01',
-          } as AssetDto,
+            amount: '0.002',
+          },
         ],
       };
-      mockLiriumService.getCustomerAccount.mockResolvedValue(mockAccount);
 
-      // Mock createOrder
-      const mockOrder: LiriumOrderResponseDto = {
-        id: 'order123',
+      const createdOrderCustomer2: LiriumOrderResponseDto = {
+        id: 'sell-order-2',
         operation: 'sell',
         state: 'pending',
         asset: {
-          currency: 'BTC',
-          amount: '0.001',
-        } as AssetDto,
+          currency: 'ETH',
+          amount: '0.002',
+        },
         sell: {
-          currency: 'USD',
-          amount: '50.00',
           settlement: {
             currency: 'USD',
-            amount: '50.00',
+            amount: '25.00',
           },
-        } as AssetDto,
+        },
       };
-      mockLiriumService.createOrder.mockResolvedValue(mockOrder);
 
-      // Mock confirmOrder
-      const mockConfirmedOrder: LiriumOrderResponseDto = {
-        ...mockOrder,
+      const confirmedOrderCustomer2: LiriumOrderResponseDto = {
+        ...createdOrderCustomer2,
         state: 'confirmed',
       };
-      mockLiriumService.confirmOrder.mockResolvedValue(mockConfirmedOrder);
 
-      // Mock database operations
-      mockPool.query.mockResolvedValue({ rows: [] });
+      (mockLiriumService.getCustomerAccount as jest.Mock)
+        .mockResolvedValueOnce(accountsCustomer1)
+        .mockResolvedValueOnce(accountsCustomer2);
 
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
+      (mockLiriumService.createOrder as jest.Mock)
+        .mockRejectedValueOnce(new Error('temporary lirium error'))
+        .mockResolvedValueOnce(createdOrderCustomer2);
 
-      // Access private method for testing
-      await (service as any).process();
+      (mockLiriumService.confirmOrder as jest.Mock).mockResolvedValue(confirmedOrderCustomer2);
 
-      expect(loggerSpy).toHaveBeenCalledWith('Getting customer account for customer1');
-      expect(mockLiriumService.getCustomerAccount).toHaveBeenCalledWith('customer1');
-      expect(mockLiriumService.createOrder).toHaveBeenCalledTimes(2); // One for each asset
-    });
+      await service.listen('company-123');
 
-    it('should skip customers with no accounts', async () => {
-      // Mock getCustomers
-      mockPool.query.mockResolvedValueOnce({
-        rows: [{ user_id: 'customer1' }],
+      expect(mockLiriumService.getCustomerAccount).toHaveBeenNthCalledWith(1, 'customer-1');
+      expect(mockLiriumService.getCustomerAccount).toHaveBeenNthCalledWith(2, 'customer-2');
+
+      expect(mockLiriumService.createOrder).toHaveBeenCalledTimes(2);
+      expect(mockLiriumService.confirmOrder).toHaveBeenCalledTimes(1);
+      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-2',
+        order_id: 'sell-order-2',
+        customer: {
+          currency: 'USD',
+          amount: '25.00',
+        },
       });
 
-      // Mock getCustomerAccount to return empty accounts
-      const mockAccount: LiriumCustomerAccountResponseDto = {
-        accounts: [],
-      };
-      mockLiriumService.getCustomerAccount.mockResolvedValue(mockAccount);
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        2,
+        'INSERT INTO deposits (order_id, company_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5, $6)',
+        ['sell-order-2', 'company-123', 'customer-2', '0.002', false, '25.00'],
+      );
 
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      await (service as any).process();
-
-      expect(loggerSpy).toHaveBeenCalledWith('Getting customer account for customer1');
-      expect(mockLiriumService.getCustomerAccount).toHaveBeenCalledWith('customer1');
-      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('getCustomers', () => {
-    it('should return array of customer IDs', async () => {
-      const mockCustomers = [
-        { user_id: 'customer1' },
-        { user_id: 'customer2' },
-        { user_id: 'customer3' },
-      ];
-
-      mockPool.query.mockResolvedValueOnce({
-        rows: mockCustomers,
-      });
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      const result = await (service as any).getCustomers();
-
-      expect(result).toEqual(['customer1', 'customer2', 'customer3']);
-      expect(mockPool.query).toHaveBeenCalledWith('SELECT user_id FROM Users ', []);
-      expect(loggerSpy).toHaveBeenCalledWith('Getting customers');
-    });
-
-    it('should handle empty result set', async () => {
-      mockPool.query.mockResolvedValueOnce({
-        rows: [],
-      });
-
-      const result = await (service as any).getCustomers();
-
-      expect(result).toEqual([]);
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        3,
+        'UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3 AND company_id = $4',
+        [true, '25.00', 'sell-order-2', 'company-123'],
+      );
     });
   });
 
   describe('createDeposit', () => {
-    const mockAsset: AssetDto = {
-      currency: 'BTC',
-      amount: '0.001',
-    };
-
-    const mockOrder: LiriumOrderResponseDto = {
-      id: 'order123',
-      operation: 'sell',
-      state: 'pending',
-      asset: mockAsset,
-      sell: {
-        currency: 'USD',
-        amount: '50.00',
-        settlement: {
-          currency: 'USD',
-          amount: '50.00',
+    it('should skip deposit creation when asset amount is zero', async () => {
+      await (service as any).createDeposit(
+        'customer-1',
+        {
+          currency: 'BTC',
+          amount: '0',
         },
-      } as AssetDto,
-    };
-
-    beforeEach(() => {
-      mockLiriumService.createOrder.mockResolvedValue(mockOrder);
-      mockLiriumService.confirmOrder.mockResolvedValue({
-        ...mockOrder,
-        state: 'confirmed',
-      });
-      mockPool.query.mockResolvedValue({ rows: [] });
-    });
-
-    it('should create deposit successfully', async () => {
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-      const consoleSpy = jest.spyOn(console, 'log');
-
-      await (service as any).createDeposit('customer1', mockAsset);
-
-      expect(loggerSpy).toHaveBeenCalledWith('Creating deposit for customer1 [object Object]');
-      expect(consoleSpy).toHaveBeenCalledWith('asset', mockAsset);
-      expect(mockLiriumService.createOrder).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customer_id: 'customer1',
-          operation: OperationType.SELL,
-          asset: mockAsset,
-          reference_id: expect.stringMatching(/^Sell\d{14}$/),
-        })
+        'company-123',
       );
-    });
 
-    it('should skip deposit when amount is 0', async () => {
-      const zeroAsset: AssetDto = {
-        currency: 'BTC',
-        amount: '0',
-      };
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      await (service as any).createDeposit('customer1', zeroAsset);
-
-      expect(loggerSpy).toHaveBeenCalledWith('Skipping deposit for customer1 because amount is 0');
       expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
+      expect(mockLiriumService.confirmOrder).not.toHaveBeenCalled();
+      expect(mockPool.query).not.toHaveBeenCalled();
     });
 
-    it('should skip deposit when amount is negative', async () => {
-      const negativeAsset: AssetDto = {
-        currency: 'BTC',
-        amount: '-0.001',
-      };
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      await (service as any).createDeposit('customer1', negativeAsset);
-
-      expect(loggerSpy).toHaveBeenCalledWith('Skipping deposit for customer1 because amount is 0');
-      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
-    });
-
-    it('should handle createOrder error', async () => {
-      const error = new Error('Lirium API error');
-      mockLiriumService.createOrder.mockRejectedValueOnce(error);
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'error');
-
-      await (service as any).createDeposit('customer1', mockAsset);
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        'Error creating deposit for customer1 [object Object]',
-        error
-      );
-    });
-
-    it('should generate unique reference_id', async () => {
-      const asset1: AssetDto = { currency: 'BTC', amount: '0.001' };
-      const asset2: AssetDto = { currency: 'ETH', amount: '0.01' };
-
-      // Mock Date to control timestamps
-      const mockDate1 = new Date('2025-01-01T10:00:00.000Z');
-      const mockDate2 = new Date('2025-01-01T10:00:01.000Z');
-      
-      let callCount = 0;
-      const originalDate = Date;
-      global.Date = jest.fn(() => {
-        callCount++;
-        return callCount === 1 ? mockDate1 : mockDate2;
-      }) as any;
-      global.Date.now = originalDate.now;
-      global.Date.UTC = originalDate.UTC;
-      global.Date.parse = originalDate.parse;
-
-      try {
-        await (service as any).createDeposit('customer1', asset1);
-        await (service as any).createDeposit('customer1', asset2);
-
-        const calls = mockLiriumService.createOrder.mock.calls;
-        expect(calls[0][0].reference_id).not.toBe(calls[1][0].reference_id);
-        expect(calls[0][0].reference_id).toMatch(/^Sell\d{14}$/);
-        expect(calls[1][0].reference_id).toMatch(/^Sell\d{14}$/);
-      } finally {
-        // Restore original Date
-        global.Date = originalDate;
-      }
-    });
-  });
-
-  describe('confirmDeposit', () => {
-    const mockOrder: LiriumOrderResponseDto = {
-      id: 'order123',
-      operation: 'sell',
-      state: 'pending',
-      asset: {
-        currency: 'BTC',
-        amount: '0.001',
-      } as AssetDto,
-      sell: {
-        currency: 'USD',
-        amount: '50.00',
-        settlement: {
-          currency: 'USD',
-          amount: '50.00',
-        },
-      } as AssetDto,
-    };
-
-    const mockConfirmedOrder: LiriumOrderResponseDto = {
-      ...mockOrder,
-      state: 'confirmed',
-    };
-
-    beforeEach(() => {
-      mockLiriumService.confirmOrder.mockResolvedValue(mockConfirmedOrder);
-      mockPool.query.mockResolvedValue({ rows: [] });
-    });
-
-    it('should confirm deposit successfully', async () => {
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-      const consoleSpy = jest.spyOn(console, 'log');
-
-      await (service as any).confirmDeposit('customer1', mockOrder);
-
-      expect(loggerSpy).toHaveBeenCalledWith('Confirming deposit for customer1 ');
-      expect(consoleSpy).toHaveBeenCalledWith('order', mockOrder);
-      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
-        customer_id: 'customer1',
-        order_id: 'order123',
-        customer: {
-          currency: 'USD',
-          amount: '50.00',
-        },
-      });
-    });
-
-    it('should handle confirmOrder error', async () => {
-      const error = new Error('Confirmation failed');
-      mockLiriumService.confirmOrder.mockRejectedValueOnce(error);
-
-      const loggerSpy = jest.spyOn(Logger.prototype, 'error');
-
-      await (service as any).confirmDeposit('customer1', mockOrder);
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        'Error confirming deposit for customer1 [object Object]',
-        error
-      );
-    });
-
-    it('should handle missing settlement data', async () => {
+    it('should fallback to asset values when settlement is missing in confirmDeposit', async () => {
       const orderWithoutSettlement: LiriumOrderResponseDto = {
-        ...mockOrder,
-        sell: undefined,
-      };
-
-      await (service as any).confirmDeposit('customer1', orderWithoutSettlement);
-
-      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
-        customer_id: 'customer1',
-        order_id: 'order123',
-        customer: {
-          currency: '',
-          amount: '',
-        },
-      });
-    });
-  });
-
-  describe('saveDeposit', () => {
-    const mockOrder: LiriumOrderResponseDto = {
-      id: 'order123',
-      operation: 'sell',
-      state: 'confirmed',
-      asset: {
-        currency: 'BTC',
-        amount: '0.001',
-      } as AssetDto,
-      sell: {
-        currency: 'USD',
-        amount: '50.00',
-        settlement: {
-          currency: 'USD',
-          amount: '50.00',
-        },
-      } as AssetDto,
-    };
-
-    it('should save deposit to database', async () => {
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
-
-      await (service as any).saveDeposit('customer1', mockOrder);
-
-      expect(loggerSpy).toHaveBeenCalledWith('Saving deposit for customer1 [object Object]');
-      expect(mockPool.query).toHaveBeenCalledWith(
-        'INSERT INTO deposits (order_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5)',
-        ['order123', 'customer1', '0.001', true, '50.00']
-      );
-    });
-
-    it('should handle pending state correctly', async () => {
-      const pendingOrder: LiriumOrderResponseDto = {
-        ...mockOrder,
+        id: 'sell-order-2',
+        operation: 'sell',
         state: 'pending',
-      };
-
-      await (service as any).saveDeposit('customer1', pendingOrder);
-
-      expect(mockPool.query).toHaveBeenCalledWith(
-        'INSERT INTO deposits (order_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5)',
-        ['order123', 'customer1', '0.001', false, '50.00']
-      );
-    });
-  });
-
-  describe('updateDeposit', () => {
-    const mockOrder: LiriumOrderResponseDto = {
-      id: 'order123',
-      operation: 'sell',
-      state: 'confirmed',
-      asset: {
-        currency: 'BTC',
-        amount: '0.001',
-      } as AssetDto,
-      sell: {
-        currency: 'USD',
-        amount: '50.00',
-        settlement: {
-          currency: 'USD',
-          amount: '50.00',
+        asset: {
+          currency: 'BTC',
+          amount: '0.002',
         },
-      } as AssetDto,
-    };
+        sell: {},
+      };
 
-    it('should update deposit in database', async () => {
-      const loggerSpy = jest.spyOn(Logger.prototype, 'log');
+      mockPool.query.mockResolvedValueOnce({
+        rows: [],
+      });
 
-      await (service as any).updateDeposit('customer1', mockOrder);
+      const confirmedOrder: LiriumOrderResponseDto = {
+        ...orderWithoutSettlement,
+        state: 'confirmed',
+      };
 
-      expect(loggerSpy).toHaveBeenCalledWith('Updating deposit for customer1 [object Object]');
+      (mockLiriumService.confirmOrder as jest.Mock).mockResolvedValue(confirmedOrder);
+
+      await (service as any).confirmDeposit(
+        'customer-1',
+        orderWithoutSettlement,
+        'company-123',
+      );
+
+      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-1',
+        order_id: 'sell-order-2',
+        customer: {
+          currency: 'BTC',
+          amount: '0.002',
+        },
+      });
+
       expect(mockPool.query).toHaveBeenCalledWith(
-        'UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3',
-        [true, '50.00', 'order123']
+        'UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3 AND company_id = $4',
+        [true, undefined, 'sell-order-2', 'company-123'],
       );
     });
 
-    it('should handle missing settlement amount', async () => {
-      const orderWithoutSettlement: LiriumOrderResponseDto = {
-        ...mockOrder,
-        sell: undefined,
+    it('should save deposit and not update it when confirmOrder fails', async () => {
+      const createdOrder: LiriumOrderResponseDto = {
+        id: 'sell-order-3',
+        operation: 'sell',
+        state: 'pending',
+        asset: {
+          currency: 'BTC',
+          amount: '0.003',
+        },
+        sell: {
+          settlement: {
+            currency: 'USD',
+            amount: '75.00',
+          },
+        },
       };
 
-      await (service as any).updateDeposit('customer1', orderWithoutSettlement);
+      (mockLiriumService.createOrder as jest.Mock).mockResolvedValue(createdOrder);
+      (mockLiriumService.confirmOrder as jest.Mock).mockRejectedValue(
+        new Error('confirm failed'),
+      );
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [],
+      });
+
+      await (service as any).createDeposit(
+        'customer-1',
+        {
+          currency: 'BTC',
+          amount: '0.003',
+        },
+        'company-123',
+      );
+
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-1',
+        reference_id: expect.stringMatching(/^Sell\d{14}$/),
+        operation: 'sell',
+        asset: {
+          currency: 'BTC',
+          amount: '0.003',
+        },
+        sell: {
+          currency: 'BTC',
+          amount: '0.003',
+        },
+      });
 
       expect(mockPool.query).toHaveBeenCalledWith(
-        'UPDATE deposits SET confirmed = $1, amount_usd = $2 WHERE order_id = $3',
-        [true, undefined, 'order123']
+        'INSERT INTO deposits (order_id, company_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5, $6)',
+        ['sell-order-3', 'company-123', 'customer-1', '0.003', false, '75.00'],
       );
+
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -16,4 +16,5 @@ export class OrderModel {
   destinationType: string;
   destinationValue: string;
   destinationAmount: string;
+  requiresConfirmationCode: boolean;
 }

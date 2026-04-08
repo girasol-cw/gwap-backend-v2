@@ -15,7 +15,7 @@ export class ListenerService {
   constructor(
     private readonly liriumService: LiriumRequestServiceAbstract,
     private readonly dbService: DatabaseService,
-  ) {}
+  ) { }
 
   private readonly SQL = {
     getCustomers: 'SELECT user_id FROM users WHERE company_id = $1',
@@ -57,7 +57,7 @@ export class ListenerService {
     }
     this.logger.log(`Creating deposit for ${customer} ${asset}`);
     console.log('asset', asset);
-    let liriumOrder: LiriumOrderRequestDto = {
+    const liriumOrder: LiriumOrderRequestDto = {
       customer_id: customer,
       reference_id:
         'Sell' +
@@ -67,12 +67,12 @@ export class ListenerService {
           .slice(0, 14),
       operation: OperationType.SELL,
       asset: asset,
+      sell: asset,
     };
 
     try {
       this.logger.log(`Creating order for ${customer} ${asset}`);
       console.log('lirium-Order-Request', liriumOrder);
-      liriumOrder.currency = asset.currency ?? '';
       const order = await this.liriumService.createOrder(liriumOrder);
       await this.saveDeposit(customer, order, companyId);
       await this.confirmDeposit(customer, order, companyId);
@@ -92,12 +92,18 @@ export class ListenerService {
   ) {
     this.logger.log(`Confirming deposit for ${customer} `);
     console.log('order', order);
+    const currency =
+      order.sell?.settlement?.currency ?? order.asset?.currency ?? '';
+
+    const amount =
+      order.sell?.settlement?.amount ?? order.asset?.amount ?? '';
+
     const liriumOrder: LiriumOrderConfirmRequestDto = {
       customer_id: customer,
       order_id: order.id,
       customer: {
-        currency: order.sell?.settlement?.currency ?? '',
-        amount: order.sell?.settlement?.amount ?? '',
+        currency,
+        amount,
       },
     };
     console.log(`Lirium order confirm request ${liriumOrder}`);

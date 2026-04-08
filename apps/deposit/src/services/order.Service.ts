@@ -21,7 +21,7 @@ export class OrderService {
   constructor(
     private readonly liriumService: LiriumRequestServiceAbstract,
     private readonly dbService: DatabaseService,
-  ) {}
+  ) { }
 
   private readonly OPERATION_PREFIX = {
     [OperationType.SELL]: 'Sell',
@@ -34,12 +34,18 @@ export class OrderService {
 
   private readonly SQL_QUERIES = {
     getCustomerId: 'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
-    getOrder: 'SELECT ASSET,SETTLEMENT,STATUS, REFERENCE_ID FROM orders WHERE id = $1 AND company_id = $2',
+    getOrder:
+      'SELECT id, user_id, reference_id, operation, asset, settlement, status, created_at, order_body, order_response, network, fees, destination_type, destination_value, destination_amount, requires_confirmation_code FROM orders WHERE id = $1 AND company_id = $2',
     saveOrder:
       'INSERT INTO orders (id, company_id, user_id, reference_id, operation, asset, ' +
       'status, created_at, order_body, order_response, network, fees, destination_type, ' +
       ' destination_value, destination_amount, settlement, requires_confirmation_code) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
     confirmOrder: 'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3',
+    getCustomerOrder:
+      'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+
+    updateOrderResponse:
+      'UPDATE orders SET status = $1, order_response = $2, fees = $3, destination_amount = $4, requires_confirmation_code = $5 WHERE id = $6 AND company_id = $7',
   };
 
   async createOrder(order: OrderRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
@@ -48,7 +54,7 @@ export class OrderService {
     order.userId = customerId;
     const liriumOrder = this.buildLiriumOrder(order);
     console.log('liriumOrder', liriumOrder);
-    const orderResponse :LiriumOrderResponseDto= await this.liriumService.createOrder(liriumOrder);
+    const orderResponse: LiriumOrderResponseDto = await this.liriumService.createOrder(liriumOrder);
     console.log('orderResponse', orderResponse);
     await this.saveOrder(liriumOrder, orderResponse, companyId);
     return orderResponse;
@@ -65,20 +71,35 @@ export class OrderService {
 
     let currency = orderDto.settlement?.currency;
     let amount = orderDto.settlement?.amount;
-    if(!amount) {
-     currency = orderDto.asset?.currency;
-     amount = orderDto.asset?.amount;
+    if (!amount) {
+      currency = orderDto.asset?.currency;
+      amount = orderDto.asset?.amount;
     }
 
     const liriumOrder: LiriumOrderConfirmRequestDto = {
       customer_id: customerId,
-      order_id: order.orderId!,
-      customer: {
+      order_id: order.orderId,
+    };
+
+    if (order.confirmationCode) {
+      liriumOrder.confirmation_code = order.confirmationCode;
+    }
+
+    if (orderDto.operation === OperationType.BUY || orderDto.operation === OperationType.SELL) {
+      let currency: string | undefined = orderDto.settlement?.currency;
+      let amount: string | undefined = orderDto.settlement?.amount;
+
+      if (!amount) {
+        currency = orderDto.asset?.currency;
+        amount = orderDto.asset?.amount;
+      }
+
+      liriumOrder.customer = {
         currency: currency!,
         amount: amount!,
-      },
-    };
-   
+      };
+    }
+
     const orderResponse = await this.liriumService.confirmOrder(liriumOrder);
     await this.updateOrder(orderResponse, companyId);
     return orderResponse;
@@ -94,37 +115,62 @@ export class OrderService {
     }
     const orderModel = result.rows[0];
     console.log('orderModel', orderModel);
-    
+
     return orderModel;
   }
-  private async updateOrder(order: LiriumOrderResponseDto, companyId: string): Promise<void> {
-    this.logger.log(`Updating order ${order}`);
-    await this.dbService.pool.query(this.SQL_QUERIES.confirmOrder, [
-      order.state,
-      order.id,
-      companyId,
-    ]);
+  private async updateOrder(
+    order: LiriumOrderResponseDto,
+    companyId: string,
+  ): Promise<void> {
+    await this.dbService.pool.query(
+      this.SQL_QUERIES.updateOrderResponse,
+      [
+        order.state,
+        JSON.stringify(order),
+        order.send?.fees ?? null,
+        order.send?.destination?.amount ?? null,
+        order.send?.requires_confirmation_code ?? false,
+        order.id,
+        companyId,
+      ],
+    );
   }
 
   private async saveOrder(
     order: LiriumOrderRequestDto,
     orderResponse: LiriumOrderResponseDto,
     companyId: string,
-  ) {
-    this.logger.log(`Saving order ${orderResponse}`);
-    this.logger.log(`Order body ${order}`);
+  ): Promise<void> {
+    this.logger.log(`Saving order ${orderResponse.id}`);
 
     let settlement: AssetDto | undefined;
     let requiresConfirmationCode: boolean = false;
-    if(order.operation === OperationType.SELL) {
+    let network: string | null = null;
+    let fees: string | null = null;
+    let destinationType: string | null = null;
+    let destinationValue: string | null = null;
+    let destinationAmount: string | null = null;
+
+    if (order.operation === OperationType.SELL) {
       settlement = orderResponse.sell?.settlement;
-      requiresConfirmationCode = order.sell?.requiresConfirmationCode ?? false;
-    } else if(order.operation === OperationType.BUY) {
+      requiresConfirmationCode = orderResponse.sell?.requires_confirmation_code ?? false;
+    } else if (order.operation === OperationType.BUY) {
       settlement = orderResponse.buy?.settlement;
-      requiresConfirmationCode = order.buy?.requiresConfirmationCode ?? false;
+      requiresConfirmationCode = orderResponse.buy?.requires_confirmation_code ?? false;
+    } else if (order.operation === OperationType.SEND) {
+      network = order.send?.network ?? null;
+      fees = orderResponse.send?.fees ?? null;
+      destinationType = order.send?.destination?.type ?? null;
+      destinationValue = order.send?.destination?.value ?? null;
+      destinationAmount =
+        orderResponse.send?.destination?.amount ??
+        order.send?.destination?.amount ??
+        null;
+      requiresConfirmationCode =
+        orderResponse.send?.requires_confirmation_code ?? false;
     }
 
-    await this.dbService.pool.query<string[]>(
+    await this.dbService.pool.query(
       this.SQL_QUERIES.saveOrder,
       [
         orderResponse.id,
@@ -137,24 +183,23 @@ export class OrderService {
         new Date().toISOString(),
         JSON.stringify(order),
         JSON.stringify(orderResponse),
-        null,
-        null,
-        null,
-        null,
-        null,
-        settlement,
+        network,
+        fees,
+        destinationType,
+        destinationValue,
+        destinationAmount,
+        settlement ?? null,
         requiresConfirmationCode,
       ],
     );
   }
 
-  private buildLiriumOrder(order: OrderRequestDto) {
+  private buildLiriumOrder(order: OrderRequestDto): LiriumOrderRequestDto {
     const referenceId =
+      order.referenceId ??
       this.OPERATION_PREFIX[order.operationType] +
-      new Date()
-        .toISOString()
-        .replace(/[-:T.]/g, '')
-        .slice(0, 14);
+      new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+
     const liriumOrder: LiriumOrderRequestDto = {
       customer_id: order.userId,
       reference_id: referenceId,
@@ -166,25 +211,51 @@ export class OrderService {
       case OperationType.SELL:
         liriumOrder.sell = order.asset;
         break;
+
       case OperationType.BUY:
         liriumOrder.buy = order.tradeOperation?.settlement || order.asset;
         break;
+
       case OperationType.SEND:
-        console.log('order.send', order.send);
-        if(!order.send?.network || !order.send?.destination) {
-          throw new BadRequestException('Network and destination are required');
+        if (!order.send?.network) {
+          throw new BadRequestException('Send network is required');
         }
-        liriumOrder.asset = order.asset;
-        liriumOrder.send={
-          network: order.send?.network!,
-          destination: order.send!.destination!,
+
+        if (!order.send?.destination?.type) {
+          throw new BadRequestException('Send destination type is required');
         }
+
+        if (!order.send?.destination?.value) {
+          throw new BadRequestException('Send destination value is required');
+        }
+
+        if (!order.asset?.amount && !order.send?.destination?.amount) {
+          throw new BadRequestException(
+            'Either asset.amount or send.destination.amount is required',
+          );
+        }
+
+        liriumOrder.asset = {
+          currency: order.asset.currency,
+          amount: order.asset.amount,
+        };
+
+        liriumOrder.send = {
+          network: order.send.network,
+          destination: {
+            type: order.send.destination.type,
+            value: order.send.destination.value,
+            amount: order.send.destination.amount,
+          },
+        };
         break;
+
       default:
         this.logger.warn(
           `Operation type ${order.operationType} does not have specific mapping`,
         );
     }
+
     return liriumOrder;
   }
 
@@ -199,5 +270,23 @@ export class OrderService {
       );
     }
     return result.rows[0].user_id;
+  }
+  async getOrderState(
+    orderId: string,
+    userId: string,
+    companyId: string,
+  ): Promise<LiriumOrderResponseDto> {
+    const customerId = await this.getCustomerId(userId, companyId);
+    await this.getOrder(orderId, companyId);
+    return this.liriumService.getOrder(customerId, orderId);
+  }
+  async resendConfirmationCode(
+    orderId: string,
+    userId: string,
+    companyId: string,
+  ): Promise<void> {
+    const customerId = await this.getCustomerId(userId, companyId);
+    await this.getOrder(orderId, companyId);
+    await this.liriumService.resendOrderConfirmationCode(customerId, orderId);
   }
 }

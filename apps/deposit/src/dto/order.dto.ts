@@ -88,16 +88,16 @@ export class DestinationDto {
   type: string;
 
   @ApiProperty({
-    description: 'Destination address',
+    description: 'Destination address or customer id',
     example: '0xaddress',
   })
   value: string;
 
-  @ApiProperty({
-    description: 'Amount to send',
+  @ApiPropertyOptional({
+    description: 'Amount to arrive at destination',
     example: '50.25',
   })
-  amount: string;
+  amount?: string;
 }
 export class SendOperationDto {
   @ApiProperty({
@@ -105,18 +105,23 @@ export class SendOperationDto {
     example: 'polygon',
   })
   network: string;
-  @ApiProperty({
-    description: 'Destination details',
-    type: () => DestinationDto,
-  })
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Destination details',
     type: () => DestinationDto,
   })
   destination: DestinationDto;
 
-  expires_at?: string;
+  @ApiPropertyOptional({
+    description: 'Expiration date in ISO format',
+    example: '2023-10-14T12:00:00Z',
+  })
+  expiresAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether confirmation code is required',
+    example: false,
+  })
   requiresConfirmationCode?: boolean;
 }
 
@@ -203,4 +208,96 @@ export class OrderConfirmRequestDto {
     example: '123456',
   })
   confirmationCode?: string;
+}
+
+export class WithdrawRequestDto {
+  @ApiProperty({ example: 'user123' })
+  userId: string;
+
+  @ApiProperty({ example: 'USDC' })
+  currency: string;
+
+  @ApiProperty({ example: '10.00' })
+  assetAmount?: string;
+
+  @ApiProperty({ example: 'polygon' })
+  network: string;
+
+  @ApiProperty({ type: () => DestinationDto })
+  destination: DestinationDto;
+
+  @ApiPropertyOptional({ example: 'withdraw-123' })
+  referenceId?: string;
+}
+
+export class ConfirmWithdrawRequestDto {
+  @ApiProperty({ example: 'user123' })
+  userId: string;
+
+  @ApiPropertyOptional({ example: '123456' })
+  confirmationCode?: string;
+}
+
+export class WithdrawResponseDto {
+  @ApiProperty({ example: 'ord_123' })
+  withdrawId: string;
+
+  @ApiProperty({ example: 'pending' })
+  status: string;
+
+  @ApiPropertyOptional({ example: false })
+  requiresConfirmationCode?: boolean;
+
+  @ApiPropertyOptional({ example: '2026-04-08T14:00:00Z' })
+  expiresAt?: string;
+
+  @ApiProperty({ type: () => AssetDto })
+  asset: AssetDto;
+}
+
+export class WithdrawStateResponseDto {
+  @ApiProperty({ example: 'ord_123' })
+  withdrawId: string;
+
+  @ApiProperty({ example: 'send' })
+  operation: string;
+
+  @ApiProperty({ example: 'pending' })
+  status: string;
+
+  @ApiProperty({ type: () => AssetDto })
+  asset: AssetDto;
+
+  @ApiPropertyOptional({ example: 'polygon' })
+  network?: string;
+
+  @ApiPropertyOptional({ example: 'crypto_currency_address' })
+  destinationType?: string;
+
+  @ApiPropertyOptional({ example: '0xabc...' })
+  destinationValue?: string;
+
+  @ApiPropertyOptional({ example: '10.00' })
+  destinationAmount?: string;
+
+  @ApiPropertyOptional({ example: '0.50' })
+  fees?: string;
+
+  @ApiPropertyOptional({ example: false })
+  requiresConfirmationCode?: boolean;
+
+  @ApiPropertyOptional({ example: '2026-04-08T14:00:00Z' })
+  expiresAt?: string;
+
+  @ApiPropertyOptional({ example: '0xhash...' })
+  transactionId?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-08T14:00:00Z' })
+  createdAt?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-08T14:05:00Z' })
+  submittedAt?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-08T14:06:00Z' })
+  lastUpdatedAt?: string;
 }
