@@ -10,6 +10,11 @@ export enum OperationType {
   REDEEM_INVESTMENT = 'redeem_investment',
 }
 
+export enum OrderIdentifierType {
+  LIRIUM_ID = 'lirium_id',
+  REFERENCE_ID = 'reference_id',
+}
+
 export class AssetDto {
   @ApiProperty({
     description: 'Currency code',

@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -38,6 +40,7 @@ import {
 } from './dto/add-wallet.dto';
 import { LiriumCustomerAccountResponseDto, LiriumOrderResponseDto } from './dto/lirium.dto';
 import {
+  OrderIdentifierType,
   OrderConfirmRequestDto,
   OrderRequestDto,
   SwapQuoteRequestDto,
@@ -248,11 +251,18 @@ export class WalletServiceController {
   @ApiBody({
     type: OrderConfirmRequestDto,
   })
+  @ApiQuery({
+    name: 'idType',
+    required: false,
+    enum: OrderIdentifierType,
+    description: 'Identifier type used in orderId. Defaults to lirium_id.',
+  })
   async confirmOrder(
     @CompanyId() companyId: string,
     @Body() body: OrderConfirmRequestDto,
+    @Query('idType') idType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
-    return this.orderService.confirmOrder(body, companyId);
+    return this.orderService.confirmOrder(body, companyId, idType);
   }
 
   @Get('order/:orderId/user/:userId')
@@ -262,12 +272,19 @@ export class WalletServiceController {
   })
   @ApiParam({ name: 'orderId', example: 'ord_123' })
   @ApiParam({ name: 'userId', example: 'acc123' })
+  @ApiQuery({
+    name: 'idType',
+    required: false,
+    enum: OrderIdentifierType,
+    description: 'Identifier type used in orderId. Defaults to lirium_id.',
+  })
   async getOrderState(
     @CompanyId() companyId: string,
     @Param('orderId') orderId: string,
     @Param('userId') userId: string,
+    @Query('idType') idType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
-    return this.orderService.getOrderState(orderId, userId, companyId);
+    return this.orderService.getOrderState(orderId, userId, companyId, idType);
   }
 
   @Post('order/:orderId/resend-code/user/:userId')
@@ -277,13 +294,20 @@ export class WalletServiceController {
   })
   @ApiParam({ name: 'orderId', example: 'ord_123' })
   @ApiParam({ name: 'userId', example: 'acc123' })
+  @ApiQuery({
+    name: 'idType',
+    required: false,
+    enum: OrderIdentifierType,
+    description: 'Identifier type used in orderId. Defaults to lirium_id.',
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   async resendConfirmationCode(
     @CompanyId() companyId: string,
     @Param('orderId') orderId: string,
     @Param('userId') userId: string,
+    @Query('idType') idType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<void> {
-    return this.orderService.resendConfirmationCode(orderId, userId, companyId);
+    return this.orderService.resendConfirmationCode(orderId, userId, companyId, idType);
   }
 
   @Get('metrics')

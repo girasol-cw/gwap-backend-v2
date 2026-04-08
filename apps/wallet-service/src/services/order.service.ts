@@ -9,6 +9,7 @@ import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-
 import {
   AssetDto,
   OperationType,
+  OrderIdentifierType,
   OrderConfirmRequestDto,
   OrderRequestDto,
   SwapQuoteRequestDto,
@@ -62,6 +63,8 @@ export class OrderService {
     getCustomerId: 'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
     getOrder:
       'SELECT id, user_id, reference_id, operation, asset, settlement, status, created_at, order_body, order_response, network, fees, destination_type, destination_value, destination_amount, requires_confirmation_code FROM orders WHERE id = $1 AND company_id = $2',
+    getOrderIdByReference:
+      'SELECT id FROM orders WHERE reference_id = $1 AND company_id = $2 AND user_id = $3 ORDER BY created_at DESC LIMIT 1',
     saveOrder:
       'INSERT INTO orders (id, company_id, user_id, reference_id, operation, asset, ' +
       'status, created_at, order_body, order_response, network, fees, destination_type, ' +
@@ -80,17 +83,28 @@ export class OrderService {
     return orderResponse;
   }
 
-  async confirmOrder(order: OrderConfirmRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
+  async confirmOrder(
+    order: OrderConfirmRequestDto,
+    companyId: string,
+    identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
+  ): Promise<LiriumOrderResponseDto> {
     const customerId = await this.getCustomerId(order.userId, companyId);
     if (!order.orderId) {
       throw new BadRequestException('Lirium Order ID is required');
     }
 
-    const orderDto = await this.getOrder(order.orderId, companyId);
+    const resolvedOrderId = await this.resolveOrderId(
+      order.orderId,
+      identifierType,
+      companyId,
+      customerId,
+    );
+
+    const orderDto = await this.getOrder(resolvedOrderId, companyId);
 
     const liriumOrder: LiriumOrderConfirmRequestDto = {
       customer_id: customerId,
-      order_id: order.orderId,
+      order_id: resolvedOrderId,
     };
 
     if (order.confirmationCode) {
@@ -121,20 +135,34 @@ export class OrderService {
     orderId: string,
     userId: string,
     companyId: string,
+    identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
     const customerId = await this.getCustomerId(userId, companyId);
-    await this.getOrder(orderId, companyId);
-    return this.liriumService.getOrder(customerId, orderId);
+    const resolvedOrderId = await this.resolveOrderId(
+      orderId,
+      identifierType,
+      companyId,
+      customerId,
+    );
+    await this.getOrder(resolvedOrderId, companyId);
+    return this.liriumService.getOrder(customerId, resolvedOrderId);
   }
 
   async resendConfirmationCode(
     orderId: string,
     userId: string,
     companyId: string,
+    identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<void> {
     const customerId = await this.getCustomerId(userId, companyId);
-    await this.getOrder(orderId, companyId);
-    await this.liriumService.resendOrderConfirmationCode(customerId, orderId);
+    const resolvedOrderId = await this.resolveOrderId(
+      orderId,
+      identifierType,
+      companyId,
+      customerId,
+    );
+    await this.getOrder(resolvedOrderId, companyId);
+    await this.liriumService.resendOrderConfirmationCode(customerId, resolvedOrderId);
   }
 
   async getSwapQuote(
@@ -195,6 +223,32 @@ export class OrderService {
     }
 
     return result.rows[0];
+  }
+
+  private async resolveOrderId(
+    identifier: string,
+    identifierType: OrderIdentifierType,
+    companyId: string,
+    customerId: string,
+  ): Promise<string> {
+    if (identifierType === OrderIdentifierType.LIRIUM_ID) {
+      return identifier;
+    }
+
+    if (identifierType === OrderIdentifierType.REFERENCE_ID) {
+      const result = await this.dbService.pool.query<{ id: string }>(
+        this.SQL_QUERIES.getOrderIdByReference,
+        [identifier, companyId, customerId],
+      );
+
+      if (result.rows.length === 0) {
+        throw new NotFoundException(`Order with reference id ${identifier} not found`);
+      }
+
+      return result.rows[0].id;
+    }
+
+    throw new BadRequestException(`Unsupported identifier type: ${identifierType}`);
   }
 
   private async updateOrder(

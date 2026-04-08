@@ -6,6 +6,7 @@ import { DatabaseService, LiriumRequestServiceAbstract, LiriumKycServiceAbstract
 import { GetWalletsService } from './services/get-wallets.service';
 import { WithdrawService } from './services/withdraw.service';
 import { OrderService } from './services/order.service';
+import { OrderIdentifierType } from './dto/order.dto';
 
 describe('WalletServiceController', () => {
   let controller: WalletServiceController;
@@ -316,6 +317,50 @@ describe('WalletServiceController', () => {
         file,
       }, companyId);
     });
+
+    it('should fail when file is missing', async () => {
+      await expect(
+        controller.uploadKyc(
+          companyId,
+          'customer-123',
+          undefined as any,
+          'application/pdf',
+          'national_id_front' as any,
+        ),
+      ).rejects.toThrow(new BadRequestException('file is required'));
+    });
+
+    it('should fail when file_type is missing', async () => {
+      const file = {
+        originalname: 'document.pdf',
+        buffer: Buffer.from('test'),
+      };
+      await expect(
+        controller.uploadKyc(
+          companyId,
+          'customer-123',
+          file,
+          '' as any,
+          'national_id_front' as any,
+        ),
+      ).rejects.toThrow(new BadRequestException('file_type is required'));
+    });
+
+    it('should fail when document_type is missing', async () => {
+      const file = {
+        originalname: 'document.pdf',
+        buffer: Buffer.from('test'),
+      };
+      await expect(
+        controller.uploadKyc(
+          companyId,
+          'customer-123',
+          file,
+          'application/pdf',
+          undefined as any,
+        ),
+      ).rejects.toThrow(new BadRequestException('document_type is required'));
+    });
   });
 
   describe('createWithdraw', () => {
@@ -531,6 +576,75 @@ describe('WalletServiceController', () => {
         controller.getSwapQuote({ asset: { currency: 'USDC', amount: '10' }, toCurrency: 'BTC' } as any),
       ).resolves.toEqual(quote);
     });
+
+    it('should delegate confirmOrder using default lirium_id', async () => {
+      const response = { id: 'order-1', state: 'processing' } as any;
+      (mockOrderService.confirmOrder as jest.Mock).mockResolvedValue(response);
+
+      const body = { userId: 'acc-1', orderId: 'ord_123', confirmationCode: '123456' } as any;
+      await expect(controller.confirmOrder(companyId, body)).resolves.toEqual(response);
+      expect(mockOrderService.confirmOrder).toHaveBeenCalledWith(
+        body,
+        companyId,
+        OrderIdentifierType.LIRIUM_ID,
+      );
+    });
+
+    it('should delegate confirmOrder using reference_id', async () => {
+      const response = { id: 'order-1', state: 'processing' } as any;
+      (mockOrderService.confirmOrder as jest.Mock).mockResolvedValue(response);
+
+      const body = { userId: 'acc-1', orderId: 'Send-001', confirmationCode: '123456' } as any;
+      await expect(
+        controller.confirmOrder(companyId, body, OrderIdentifierType.REFERENCE_ID),
+      ).resolves.toEqual(response);
+      expect(mockOrderService.confirmOrder).toHaveBeenCalledWith(
+        body,
+        companyId,
+        OrderIdentifierType.REFERENCE_ID,
+      );
+    });
+
+    it('should delegate getOrderState using reference_id', async () => {
+      const response = { id: 'order-1', state: 'pending' } as any;
+      (mockOrderService.getOrderState as jest.Mock).mockResolvedValue(response);
+
+      await expect(
+        controller.getOrderState(
+          companyId,
+          'Send-001',
+          'acc-1',
+          OrderIdentifierType.REFERENCE_ID,
+        ),
+      ).resolves.toEqual(response);
+
+      expect(mockOrderService.getOrderState).toHaveBeenCalledWith(
+        'Send-001',
+        'acc-1',
+        companyId,
+        OrderIdentifierType.REFERENCE_ID,
+      );
+    });
+
+    it('should delegate resendConfirmationCode using reference_id', async () => {
+      (mockOrderService.resendConfirmationCode as jest.Mock).mockResolvedValue(undefined);
+
+      await expect(
+        controller.resendConfirmationCode(
+          companyId,
+          'Send-001',
+          'acc-1',
+          OrderIdentifierType.REFERENCE_ID,
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(mockOrderService.resendConfirmationCode).toHaveBeenCalledWith(
+        'Send-001',
+        'acc-1',
+        companyId,
+        OrderIdentifierType.REFERENCE_ID,
+      );
+    });
   });
 
   describe('getCustomerAccount', () => {
@@ -549,6 +663,16 @@ describe('WalletServiceController', () => {
         ['account-123', companyId],
       );
       expect(mockLiriumRequestService.getCustomerAccount).toHaveBeenCalledWith('lirium-user-123');
+    });
+
+    it('should throw NotFoundException when mapping does not exist', async () => {
+      (mockDatabaseService.pool.query as jest.Mock).mockResolvedValue({
+        rows: [],
+      });
+
+      await expect(
+        controller.getCustomerAccount(companyId, 'missing-account'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
