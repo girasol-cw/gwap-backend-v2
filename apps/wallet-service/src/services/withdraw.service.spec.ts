@@ -6,8 +6,8 @@ import {
   ConfirmWithdrawRequestDto,
   WithdrawRequestDto,
 } from '../dto/withdraw.dto';
-import { OperationType } from 'apps/deposit/src/dto/order.dto';
-import { LiriumOrderResponseDto } from 'apps/deposit/src/dto/lirium.dto';
+import { OperationType } from '../dto/order.dto';
+import { LiriumOrderResponseDto } from '../dto/lirium.dto';
 
 describe('WithdrawService', () => {
   let service: WithdrawService;

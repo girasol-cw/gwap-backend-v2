@@ -2,15 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { WalletServiceController } from './wallet-service.controller';
 import { MetricsService } from './metrics.service';
-import { LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
+import { DatabaseService, LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
 import { GetWalletsService } from './services/get-wallets.service';
 import { WithdrawService } from './services/withdraw.service';
+import { OrderService } from './services/order.service';
 
 describe('WalletServiceController', () => {
   let controller: WalletServiceController;
 
   const mockLiriumRequestService: jest.Mocked<Partial<LiriumRequestServiceAbstract>> = {
     createCustomer: jest.fn(),
+    getCustomerAccount: jest.fn(),
   };
 
   const mockMetricsService: jest.Mocked<Partial<MetricsService>> = {
@@ -30,6 +32,18 @@ describe('WalletServiceController', () => {
     confirmWithdraw: jest.fn(),
     getWithdrawState: jest.fn(),
     resendWithdrawConfirmationCode: jest.fn(),
+  };
+  const mockOrderService: jest.Mocked<Partial<OrderService>> = {
+    createOrder: jest.fn(),
+    confirmOrder: jest.fn(),
+    getOrderState: jest.fn(),
+    resendConfirmationCode: jest.fn(),
+    getSwapQuote: jest.fn(),
+  };
+  const mockDatabaseService = {
+    pool: {
+      query: jest.fn(),
+    },
   };
 
   const companyId: string = 'company-123';
@@ -59,6 +73,14 @@ describe('WalletServiceController', () => {
         {
           provide: WithdrawService,
           useValue: mockWithdrawService,
+        },
+        {
+          provide: OrderService,
+          useValue: mockOrderService,
+        },
+        {
+          provide: DatabaseService,
+          useValue: mockDatabaseService,
         },
       ],
     }).compile();
@@ -292,7 +314,7 @@ describe('WalletServiceController', () => {
         document_type: 'national_id_front',
         user_id: 'customer-123',
         file,
-      });
+      }, companyId);
     });
   });
 
@@ -488,6 +510,45 @@ describe('WalletServiceController', () => {
           'order-send-123',
         ),
       ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('orders and swap', () => {
+    it('should delegate createOrder', async () => {
+      const response = { id: 'order-1' } as any;
+      (mockOrderService.createOrder as jest.Mock).mockResolvedValue(response);
+
+      const body = { userId: 'acc-1', operationType: 'swap', asset: { currency: 'USDC', amount: '10' } } as any;
+      await expect(controller.createOrder(companyId, body)).resolves.toEqual(response);
+      expect(mockOrderService.createOrder).toHaveBeenCalledWith(body, companyId);
+    });
+
+    it('should delegate swap quote', async () => {
+      const quote = { from: { currency: 'USDC', amount: '10' }, to: { currency: 'BTC', amount: '0.0002' }, rate: '0.00002' };
+      (mockOrderService.getSwapQuote as jest.Mock).mockResolvedValue(quote);
+
+      await expect(
+        controller.getSwapQuote({ asset: { currency: 'USDC', amount: '10' }, toCurrency: 'BTC' } as any),
+      ).resolves.toEqual(quote);
+    });
+  });
+
+  describe('getCustomerAccount', () => {
+    it('should resolve user mapping and query lirium account', async () => {
+      (mockDatabaseService.pool.query as jest.Mock).mockResolvedValue({
+        rows: [{ user_id: 'lirium-user-123' }],
+      });
+      (mockLiriumRequestService.getCustomerAccount as jest.Mock).mockResolvedValue({
+        accounts: [],
+      });
+
+      const result = await controller.getCustomerAccount(companyId, 'account-123');
+      expect(result).toEqual({ accounts: [] });
+      expect(mockDatabaseService.pool.query).toHaveBeenCalledWith(
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        ['account-123', companyId],
+      );
+      expect(mockLiriumRequestService.getCustomerAccount).toHaveBeenCalledWith('lirium-user-123');
     });
   });
 });

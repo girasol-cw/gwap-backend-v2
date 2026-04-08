@@ -1,35 +1,60 @@
 import {
-  Controller,
-  Post,
-  Body,
   BadRequestException,
+  Body,
+  Controller,
   Get,
-  Param,
   Header,
-  NotFoundException,
-  HttpStatus,
   HttpCode,
-  UseInterceptors,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
   UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-
-import { AddWalletRequestDto, AddWalletResponseDto, ErrorResponseDto } from './dto/add-wallet.dto';
-import { globalRegistry, MetricsService } from './metrics.service';
-import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
-import { GetWalletsService } from './services/get-wallets.service';
-import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiHeader } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { CompanyId, LiriumFileDto, LiriumFileType, LiriumKycServiceAbstract, SkipCompanyId } from 'libs/shared';
-import { WithdrawService } from './services/withdraw.service';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  CompanyId,
+  DatabaseService,
+  LiriumFileDto,
+  LiriumFileType,
+  LiriumKycServiceAbstract,
+  SkipCompanyId,
+} from 'libs/shared';
+import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
+import {
+  AddWalletRequestDto,
+  AddWalletResponseDto,
+  ErrorResponseDto,
+} from './dto/add-wallet.dto';
+import { LiriumCustomerAccountResponseDto, LiriumOrderResponseDto } from './dto/lirium.dto';
+import {
+  OrderConfirmRequestDto,
+  OrderRequestDto,
+  SwapQuoteRequestDto,
+  SwapQuoteResponseDto,
+} from './dto/order.dto';
 import {
   ConfirmWithdrawRequestDto,
   WithdrawRequestDto,
   WithdrawResponseDto,
   WithdrawStateResponseDto,
 } from './dto/withdraw.dto';
+import { globalRegistry, MetricsService } from './metrics.service';
+import { GetWalletsService } from './services/get-wallets.service';
+import { OrderService } from './services/order.service';
+import { WithdrawService } from './services/withdraw.service';
 
-
-const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 
 @ApiTags('Wallet Service')
 @Controller()
@@ -41,6 +66,8 @@ export class WalletServiceController {
     private readonly getWalletsService: GetWalletsService,
     private readonly liriumKycService: LiriumKycServiceAbstract,
     private readonly withdrawService: WithdrawService,
+    private readonly orderService: OrderService,
+    private readonly databaseService: DatabaseService,
   ) { }
 
   @Post('addWallet')
@@ -141,6 +168,124 @@ export class WalletServiceController {
     }
   }
 
+  @Get('customer/:accountId/account')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Get customer account information',
+    description: 'Retrieves account information for a specific customer by account ID',
+  })
+  @ApiParam({
+    name: 'accountId',
+    description: 'Girasol account ID',
+    example: 'acc123',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer account information retrieved successfully',
+    type: LiriumCustomerAccountResponseDto,
+  })
+  async getCustomerAccount(
+    @CompanyId() companyId: string,
+    @Param('accountId') accountId: string,
+  ): Promise<LiriumCustomerAccountResponseDto> {
+    try {
+      const result = await this.databaseService.pool.query<{ user_id: string }>(
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        [accountId, companyId],
+      );
+
+      if (result.rows.length === 0) {
+        throw new NotFoundException(`Customer with account id ${accountId} not found`);
+      }
+
+      return this.liriumRequestService.getCustomerAccount(result.rows[0].user_id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error);
+    }
+  }
+
+  @Post('order')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Create a Lirium order (buy/sell/swap/send)',
+  })
+  @ApiBody({
+    type: OrderRequestDto,
+  })
+  async createOrder(
+    @CompanyId() companyId: string,
+    @Body() body: OrderRequestDto,
+  ): Promise<LiriumOrderResponseDto> {
+    return this.orderService.createOrder(body, companyId);
+  }
+
+  @Post('swap/quote')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Get swap quote',
+  })
+  @ApiBody({
+    type: SwapQuoteRequestDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SwapQuoteResponseDto,
+  })
+  async getSwapQuote(
+    @Body() body: SwapQuoteRequestDto,
+  ): Promise<SwapQuoteResponseDto> {
+    return this.orderService.getSwapQuote(body);
+  }
+
+  @Post('order/confirm')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Confirm an existing Lirium order',
+  })
+  @ApiBody({
+    type: OrderConfirmRequestDto,
+  })
+  async confirmOrder(
+    @CompanyId() companyId: string,
+    @Body() body: OrderConfirmRequestDto,
+  ): Promise<LiriumOrderResponseDto> {
+    return this.orderService.confirmOrder(body, companyId);
+  }
+
+  @Get('order/:orderId/user/:userId')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Get order state',
+  })
+  @ApiParam({ name: 'orderId', example: 'ord_123' })
+  @ApiParam({ name: 'userId', example: 'acc123' })
+  async getOrderState(
+    @CompanyId() companyId: string,
+    @Param('orderId') orderId: string,
+    @Param('userId') userId: string,
+  ): Promise<LiriumOrderResponseDto> {
+    return this.orderService.getOrderState(orderId, userId, companyId);
+  }
+
+  @Post('order/:orderId/resend-code/user/:userId')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Resend confirmation code for order',
+  })
+  @ApiParam({ name: 'orderId', example: 'ord_123' })
+  @ApiParam({ name: 'userId', example: 'acc123' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resendConfirmationCode(
+    @CompanyId() companyId: string,
+    @Param('orderId') orderId: string,
+    @Param('userId') userId: string,
+  ): Promise<void> {
+    return this.orderService.resendConfirmationCode(orderId, userId, companyId);
+  }
+
   @Get('metrics')
   @SkipCompanyId()
   @Header('Content-Type', globalRegistry.contentType)
@@ -165,7 +310,6 @@ export class WalletServiceController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseInterceptors(
     FileInterceptor('file', {
-
       limits: { fileSize: MAX_SIZE_BYTES },
     }),
   )
@@ -226,6 +370,7 @@ export class WalletServiceController {
     if (!documentType) {
       throw new BadRequestException('document_type is required');
     }
+
     const liriumFile: LiriumFileDto = new LiriumFileDto();
     liriumFile.file_name = file.originalname;
     liriumFile.file_type = fileType;
@@ -233,9 +378,9 @@ export class WalletServiceController {
     liriumFile.user_id = customerId;
     liriumFile.file = file;
 
-
     await this.liriumKycService.uploadKyc(liriumFile, companyId);
   }
+
   @Post('wallet/:accountId/withdraw')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
@@ -295,6 +440,7 @@ export class WalletServiceController {
       data: result,
     };
   }
+
   @Post('wallet/:accountId/withdraw/:withdrawId/confirm')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
@@ -350,6 +496,7 @@ export class WalletServiceController {
       data: result,
     };
   }
+
   @ApiParam({
     name: 'accountId',
     description: 'Wallet account identifier',
@@ -399,6 +546,7 @@ export class WalletServiceController {
       data: result,
     };
   }
+
   @Post('wallet/:accountId/withdraw/:withdrawId/resend-code')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
@@ -406,7 +554,6 @@ export class WalletServiceController {
     description: 'Resends the security code required to confirm a Lirium send order',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-
   async resendWithdrawConfirmationCode(
     @CompanyId() companyId: string,
     @Param('accountId') accountId: string,

@@ -4,7 +4,7 @@ import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
-} from 'apps/deposit/src/dto/lirium.dto';
+} from 'apps/wallet-service/src/dto/lirium.dto';
 import {
   AddWalletRequestDto,
   AddWalletResponseDto,

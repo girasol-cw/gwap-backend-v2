@@ -4,8 +4,8 @@ import {
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
-} from 'apps/deposit/src/dto/lirium.dto';
-import { OperationType } from 'apps/deposit/src/dto/order.dto';
+} from '../dto/lirium.dto';
+import { OperationType } from '../dto/order.dto';
 import {
   ConfirmWithdrawRequestDto,
   WithdrawRequestDto,
