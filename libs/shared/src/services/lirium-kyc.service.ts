@@ -13,9 +13,9 @@ export class LiriumKycService extends LiriumKycServiceAbstract {
         super();
     }
 
-    public async uploadKyc(file: LiriumFileDto): Promise<void> {
+    public async uploadKyc(file: LiriumFileDto, companyId: string): Promise<void> {
         file.validateFileProperties();
-        const userId = await this.getUserByAccountId(file.user_id);
+        const userId = await this.getUserByAccountId(file.user_id, companyId);
         if (!userId) {
             throw new BadRequestException(`User with account id ${file.user_id} not found`);
         }
@@ -40,10 +40,10 @@ export class LiriumKycService extends LiriumKycServiceAbstract {
         await this.httpService.post(this.URL_KYC.replace('{0}', userId), formData, configRequest);
     }
 
-    private async getUserByAccountId(accountId: string): Promise<string> {
+    private async getUserByAccountId(accountId: string, companyId: string): Promise<string> {
         const result = await this.databaseService.pool.query<string[]>(
-            'SELECT user_id FROM users WHERE girasol_account_id = $1',
-            [accountId],
+            'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+            [accountId, companyId],
         );
         return result.rows[0]?.user_id;
     }

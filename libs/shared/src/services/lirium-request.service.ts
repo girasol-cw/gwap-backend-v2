@@ -105,7 +105,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     const responseBody = response.data as LiriumRequestDto;
     const responseJson = JSON.stringify(response.data);
     responseBody.customer = responseJson;
-    this.saveCustomer(responseBody, customer.accountId, companyId);
+    await this.saveCustomer(responseBody, customer.accountId, companyId);
 
     responseDto.email = responseBody.contact.email;
     responseDto.accountId = responseBody.id ?? '';
@@ -127,12 +127,12 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     return result.rows.length > 0;
   }
 
-  private saveCustomer(
+  private async saveCustomer(
     customer: LiriumRequestDto,
     girasolAccountId: string,
     companyId: string,
-  ): void {
-    this.databaseService.pool.query(
+  ): Promise<void> {
+    await this.databaseService.pool.query(
       'INSERT INTO users (user_id, company_id, girasol_account_id, status, label,' +
       'first_name, middle_name, last_name, date_of_birth, national_id_country, national_id_type, national_id,' +
       'citizenship, address_line1, address_line2, city, state, country, zip_code, tax_id, tax_country, cellphone, email, customer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)',

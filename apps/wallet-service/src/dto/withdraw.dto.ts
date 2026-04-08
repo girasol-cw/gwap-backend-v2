@@ -1,34 +1,54 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class WithdrawDestinationDto {
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ example: 'crypto_currency_address' })
   type: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ example: '0xabc123...' })
   value: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({ example: '10.00' })
   amount?: string;
 }
 
 export class WithdrawRequestDto {
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ example: 'USDC' })
   currency: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({ example: '10.00' })
   assetAmount?: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ example: 'polygon' })
   network: string;
 
+  @ValidateNested()
+  @Type(() => WithdrawDestinationDto)
   @ApiProperty({ type: () => WithdrawDestinationDto })
   destination: WithdrawDestinationDto;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({ example: 'withdraw-123' })
   referenceId?: string;
 }
 
 export class ConfirmWithdrawRequestDto {
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({ example: '123456' })
   confirmationCode?: string;
 }

@@ -17,7 +17,7 @@ import { AddWalletRequestDto, AddWalletResponseDto, ErrorResponseDto } from './d
 import { globalRegistry, MetricsService } from './metrics.service';
 import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import { GetWalletsService } from './services/get-wallets.service';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiHeader } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags, ApiParam, ApiHeader } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CompanyId, LiriumFileDto, LiriumFileType, LiriumKycServiceAbstract, SkipCompanyId } from 'libs/shared';
 import { WithdrawService } from './services/withdraw.service';
@@ -162,13 +162,35 @@ export class WalletServiceController {
 
   @Post('kyc/:customerId/upload')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
-  @HttpCode(201)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @UseInterceptors(
     FileInterceptor('file', {
 
       limits: { fileSize: MAX_SIZE_BYTES },
     }),
   )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'file_type', 'document_type'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        file_type: {
+          type: 'string',
+          example: 'passport_front',
+        },
+        document_type: {
+          type: 'string',
+          enum: Object.values(LiriumFileType),
+          example: LiriumFileType.ID_FRONT,
+        },
+      },
+    },
+  })
   @ApiOperation({
     summary: 'Upload KYC document',
     description: 'Uploads a KYC document for a customer',
@@ -187,13 +209,23 @@ export class WalletServiceController {
     description: 'Invalid request parameters',
   })
   async uploadKyc(
-    @CompanyId() _companyId: string,
+    @CompanyId() companyId: string,
     @Param('customerId') customerId: string,
     @UploadedFile() file: any,
     @Body('file_type') fileType: string,
     @Body('document_type') documentType: LiriumFileType,
   ): Promise<void> {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
 
+    if (!fileType) {
+      throw new BadRequestException('file_type is required');
+    }
+
+    if (!documentType) {
+      throw new BadRequestException('document_type is required');
+    }
     const liriumFile: LiriumFileDto = new LiriumFileDto();
     liriumFile.file_name = file.originalname;
     liriumFile.file_type = fileType;
@@ -202,13 +234,54 @@ export class WalletServiceController {
     liriumFile.file = file;
 
 
-    await this.liriumKycService.uploadKyc(liriumFile);
+    await this.liriumKycService.uploadKyc(liriumFile, companyId);
   }
   @Post('wallet/:accountId/withdraw')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
     summary: 'Create a withdraw for a wallet',
     description: 'Creates a Lirium send order for the specified wallet account',
+  })
+  @ApiParam({
+    name: 'accountId',
+    description: 'Wallet account identifier',
+    example: 'acc123',
+  })
+  @ApiBody({
+    type: WithdrawRequestDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Withdraw created successfully',
+    schema: {
+      example: {
+        message: 'Success',
+        data: {
+          withdrawId: 'ord_123',
+          status: 'pending',
+          requiresConfirmationCode: true,
+          expiresAt: '2026-04-08T14:00:00Z',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request parameters',
+  })
+  @ApiParam({
+    name: 'accountId',
+    description: 'Wallet account identifier',
+    example: 'acc123',
+  })
+  @ApiParam({
+    name: 'withdrawId',
+    description: 'Withdraw identifier',
+    example: 'ord_123',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Confirmation code resent successfully',
   })
   async createWithdraw(
     @CompanyId() companyId: string,
@@ -228,6 +301,37 @@ export class WalletServiceController {
     summary: 'Confirm a withdraw',
     description: 'Confirms a previously created Lirium send order',
   })
+  @ApiParam({
+    name: 'accountId',
+    description: 'Wallet account identifier',
+    example: 'acc123',
+  })
+  @ApiParam({
+    name: 'withdrawId',
+    description: 'Withdraw identifier',
+    example: 'ord_123',
+  })
+  @ApiBody({
+    type: ConfirmWithdrawRequestDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Withdraw confirmed successfully',
+    schema: {
+      example: {
+        message: 'Success',
+        data: {
+          withdrawId: 'ord_123',
+          status: 'submitted',
+          requiresConfirmationCode: false,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request parameters',
+  })
   async confirmWithdraw(
     @CompanyId() companyId: string,
     @Param('accountId') accountId: string,
@@ -246,6 +350,33 @@ export class WalletServiceController {
       data: result,
     };
   }
+  @ApiParam({
+    name: 'accountId',
+    description: 'Wallet account identifier',
+    example: 'acc123',
+  })
+  @ApiParam({
+    name: 'withdrawId',
+    description: 'Withdraw identifier',
+    example: 'ord_123',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Withdraw state retrieved successfully',
+    schema: {
+      example: {
+        message: 'Success',
+        data: {
+          withdrawId: 'ord_123',
+          operation: 'send',
+          status: 'pending',
+          currency: 'USDC',
+          assetAmount: '10.00',
+          network: 'polygon',
+        },
+      },
+    },
+  })
   @Get('wallet/:accountId/withdraw/:withdrawId')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
@@ -275,6 +406,7 @@ export class WalletServiceController {
     description: 'Resends the security code required to confirm a Lirium send order',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
+
   async resendWithdrawConfirmationCode(
     @CompanyId() companyId: string,
     @Param('accountId') accountId: string,

@@ -20,7 +20,8 @@ async function bootstrap() {
     .build();
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({
-    forbidNonWhitelisted: false,
+    whitelist: true,
+    forbidNonWhitelisted: true,
     transform: true,
   }));
   const document = SwaggerModule.createDocument(app, config);
@@ -28,4 +29,3 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3001);
 }
 bootstrap();
-

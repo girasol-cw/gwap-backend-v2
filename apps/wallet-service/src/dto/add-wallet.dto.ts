@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class walletDto {
   @ApiProperty({ 
@@ -27,6 +28,7 @@ export class walletDto {
 }
 
 export class AddWalletRequestDto {
+  @IsEnum(['individual', 'business'])
   @ApiProperty({ 
     description: 'Type of user account',
     enum: ['individual', 'business'],
@@ -34,24 +36,32 @@ export class AddWalletRequestDto {
   })
   userType: 'individual' | 'business';
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Unique identifier for the user',
     example: 'user123'
   })
   userId: string;
 
+  @IsEmail()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'User email address',
     example: 'user@example.com'
   })
   email: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Account identifier',
     example: 'acc123'
   })
   accountId: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'Optional label for the wallet',
     required: false,
@@ -59,12 +69,16 @@ export class AddWalletRequestDto {
   })
   label?: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'User first name',
     example: 'John'
   })
   firstName: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'User middle name',
     required: false,
@@ -72,48 +86,64 @@ export class AddWalletRequestDto {
   })
   middleName?: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'User last name',
     example: 'Doe'
   })
   lastName: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'User birth date in YYYY-MM-DD format',
     example: '1990-01-01'
   })
   birthDate: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Country ISO2 code for national ID',
     example: 'US'
   })
   nationalIdCountryIso2: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Type of national ID',
     example: 'passport'
   })
   nationalIdType: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'National ID number',
     example: 'A12345678'
   })
   nationalId: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Citizenship country ISO2 code',
     example: 'US'
   })
   citizenshipIso2: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Primary address line',
     example: '123 Main St'
   })
   addressLine1: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'Secondary address line',
     required: false,
@@ -121,30 +151,40 @@ export class AddWalletRequestDto {
   })
   addressLine2?: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'City name',
     example: 'New York'
   })
   city: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'State or province',
     example: 'NY'
   })
   state: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'Country ISO2 code',
     example: 'US'
   })
   countryIso2: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'ZIP or postal code',
     example: '10001'
   })
   zipCode: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'Tax ID number',
     required: false,
@@ -152,6 +192,8 @@ export class AddWalletRequestDto {
   })
   taxId?: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'Tax country ISO2 code',
     required: false,
@@ -159,12 +201,16 @@ export class AddWalletRequestDto {
   })
   taxCountryIso2?: string;
 
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({ 
     description: 'User cellphone number',
     example: '+1234567890'
   })
   cellphone: string;
 
+  @IsOptional()
+  @IsString()
   @ApiProperty({ 
     description: 'Business name (for business accounts)',
     required: false,
