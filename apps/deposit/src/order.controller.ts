@@ -1,5 +1,10 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { OrderConfirmRequestDto, OrderRequestDto } from './dto/order.dto';
+import {
+  OrderConfirmRequestDto,
+  OrderRequestDto,
+  SwapQuoteRequestDto,
+  SwapQuoteResponseDto,
+} from './dto/order.dto';
 import { OrderService } from './services/order.Service';
 import { LiriumOrderResponseDto } from './dto/lirium.dto';
 import { CompanyId } from 'libs/shared';
@@ -15,7 +20,18 @@ export class OrderController {
     @CompanyId() companyId: string,
     @Body() body: OrderRequestDto,
   ): Promise<LiriumOrderResponseDto> {
-    return await this.orderService.createOrder(body, companyId);
+    return this.orderService.createOrder(body, companyId);
+  }
+  @Post('swap/quote')
+  @ApiHeader({
+    name: 'x-company-id',
+    description: 'Tenant/company identifier (multi-tenant)',
+    required: true,
+  })
+  async getSwapQuote(
+    @Body() body: SwapQuoteRequestDto,
+  ): Promise<SwapQuoteResponseDto> {
+    return this.orderService.getSwapQuote(body);
   }
 
   @Post('order/confirm')
@@ -24,7 +40,7 @@ export class OrderController {
     @CompanyId() companyId: string,
     @Body() body: OrderConfirmRequestDto,
   ): Promise<LiriumOrderResponseDto> {
-    return await this.orderService.confirmOrder(body, companyId);
+    return this.orderService.confirmOrder(body, companyId);
   }
   @Get('order/:orderId/user/:userId')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })

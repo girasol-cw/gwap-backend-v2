@@ -80,6 +80,31 @@ export class TradeOperationDto {
   })
   expiresAt?: string;
 }
+export class SwapOperationDto {
+  @ApiProperty({
+    description: 'Destination currency for the swap',
+    example: 'BTC',
+  })
+  currency: string;
+
+  @ApiPropertyOptional({
+    description: 'Amount to swap (optional depending on flow)',
+    example: '100.00',
+  })
+  amount?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether confirmation code is required',
+    example: false,
+  })
+  requiresConfirmationCode?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Expiration date in ISO format',
+    example: '2023-10-14T12:00:00Z',
+  })
+  expiresAt?: string;
+}
 export class DestinationDto {
   @ApiProperty({
     description: 'Destination type',
@@ -127,14 +152,19 @@ export class SendOperationDto {
 
 
 
-// OrderRequestDto goes LAST (after all dependencies are defined)
+// NOTE:
+// Only ONE operation node must be provided:
+// - tradeOperation (buy/sell)
+// - swap
+// - send
+// These are mutually exclusive as per Lirium API contract.
 export class OrderRequestDto {
   @ApiProperty({
     description: 'Girasol User ID',
     example: 'user123',
   })
   userId: string;
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Lirium Order ID',
     example: 'ord_123456',
   })
@@ -147,7 +177,7 @@ export class OrderRequestDto {
   operationType: OperationType;
 
   @ApiProperty({
-    description: 'Asset information',
+    description: 'Source asset (asset to spend)',
     type: () => AssetDto,
   })
   asset: AssetDto;
@@ -159,10 +189,10 @@ export class OrderRequestDto {
   tradeOperation?: TradeOperationDto;
 
   @ApiPropertyOptional({
-    description: 'Swap asset information',
-    type: () => AssetDto,
+    description: 'Swap operation details',
+    type: () => SwapOperationDto,
   })
-  swap?: AssetDto;
+  swap?: SwapOperationDto;
 
   @ApiPropertyOptional({
     description: 'Send operation details',
@@ -198,12 +228,12 @@ export class OrderConfirmRequestDto {
     example: 'user123',
   })
   userId: string;
-  @ApiProperty({
-    description: 'Order ID',
+  @ApiPropertyOptional({
+    description: 'Lirium Order ID',
     example: 'ord_123456',
   })
-  orderId: string;
-  @ApiProperty({
+  orderId?: string;
+  @ApiPropertyOptional({
     description: 'Confirmation code',
     example: '123456',
   })
@@ -300,4 +330,50 @@ export class WithdrawStateResponseDto {
 
   @ApiPropertyOptional({ example: '2026-04-08T14:06:00Z' })
   lastUpdatedAt?: string;
+}
+
+export class SwapQuoteRequestDto {
+  @ApiProperty({
+    description: 'Source asset (asset to swap from)',
+    type: () => AssetDto,
+  })
+  asset: AssetDto;
+
+  @ApiProperty({
+    description: 'Destination currency',
+    example: 'BTC',
+  })
+  toCurrency: string;
+}
+
+export class SwapQuoteResponseDto {
+  @ApiProperty({
+    description: 'Source asset',
+    type: () => AssetDto,
+  })
+  from: AssetDto;
+
+  @ApiProperty({
+    description: 'Estimated destination asset',
+    type: () => AssetDto,
+  })
+  to: AssetDto;
+
+  @ApiPropertyOptional({
+    description: 'Estimated rate',
+    example: '0.00002',
+  })
+  rate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Estimated fees',
+    example: '0.25',
+  })
+  fees?: string;
+
+  @ApiPropertyOptional({
+    description: 'Expiration date of quote',
+    example: '2026-04-08T14:00:00Z',
+  })
+  expiresAt?: string;
 }

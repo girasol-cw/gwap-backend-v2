@@ -6,13 +6,22 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from 'libs/shared';
 import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
-import { AssetDto, OperationType, OrderConfirmRequestDto, OrderDto, OrderRequestDto } from '../dto/order.dto';
 import {
+  AssetDto,
+  OperationType,
+  OrderConfirmRequestDto,
+  OrderRequestDto,
+  SwapQuoteRequestDto,
+  SwapQuoteResponseDto,
+} from '../dto/order.dto';
+import {
+  LiriumExchangeRateDto,
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
 } from '../dto/lirium.dto';
 import { OrderModel } from '../models/order';
+
 
 @Injectable()
 export class OrderService {
@@ -49,13 +58,13 @@ export class OrderService {
   };
 
   async createOrder(order: OrderRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
-    this.logger.log(`Creating order ${order}`);
+    this.logger.log(`Creating order ${JSON.stringify(order)}`);
     const customerId = await this.getCustomerId(order.userId, companyId);
     order.userId = customerId;
     const liriumOrder = this.buildLiriumOrder(order);
-    console.log('liriumOrder', liriumOrder);
+    this.logger.debug('liriumOrder', liriumOrder);
     const orderResponse: LiriumOrderResponseDto = await this.liriumService.createOrder(liriumOrder);
-    console.log('orderResponse', orderResponse);
+    this.logger.debug('orderResponse', orderResponse);
     await this.saveOrder(liriumOrder, orderResponse, companyId);
     return orderResponse;
   }
@@ -68,13 +77,6 @@ export class OrderService {
     }
     order.userId = customerId;
     const orderDto = await this.getOrder(order.orderId!, companyId);
-
-    let currency = orderDto.settlement?.currency;
-    let amount = orderDto.settlement?.amount;
-    if (!amount) {
-      currency = orderDto.asset?.currency;
-      amount = orderDto.asset?.amount;
-    }
 
     const liriumOrder: LiriumOrderConfirmRequestDto = {
       customer_id: customerId,
@@ -114,7 +116,7 @@ export class OrderService {
       throw new NotFoundException(`Order with id ${orderId} not found`);
     }
     const orderModel = result.rows[0];
-    console.log('orderModel', orderModel);
+    this.logger.debug('orderModel', orderModel);
 
     return orderModel;
   }
@@ -128,11 +130,13 @@ export class OrderService {
         order.state,
         JSON.stringify(order),
         order.send?.fees ?? null,
-        order.send?.destination?.amount ?? null,
-        order.send?.requires_confirmation_code ?? false,
+        order.send?.destination?.amount ?? order.swap?.amount ?? null,
+        order.send?.requires_confirmation_code ??
+        order.swap?.requires_confirmation_code ??
+        false,
         order.id,
         companyId,
-      ],
+      ]
     );
   }
 
@@ -150,13 +154,28 @@ export class OrderService {
     let destinationType: string | null = null;
     let destinationValue: string | null = null;
     let destinationAmount: string | null = null;
-
     if (order.operation === OperationType.SELL) {
       settlement = orderResponse.sell?.settlement;
-      requiresConfirmationCode = orderResponse.sell?.requires_confirmation_code ?? false;
+      requiresConfirmationCode =
+        orderResponse.sell?.requires_confirmation_code ?? false;
+
     } else if (order.operation === OperationType.BUY) {
       settlement = orderResponse.buy?.settlement;
-      requiresConfirmationCode = orderResponse.buy?.requires_confirmation_code ?? false;
+      requiresConfirmationCode =
+        orderResponse.buy?.requires_confirmation_code ?? false;
+
+    } else if (order.operation === OperationType.SWAP) {
+      if (!orderResponse.swap?.currency || !orderResponse.swap?.amount) {
+        throw new BadRequestException('Invalid swap response from Lirium');
+      }
+
+      settlement = {
+        currency: orderResponse.swap.currency,
+        amount: orderResponse.swap.amount,
+      };
+      requiresConfirmationCode =
+        orderResponse.swap?.requires_confirmation_code ?? false;
+
     } else if (order.operation === OperationType.SEND) {
       network = order.send?.network ?? null;
       fees = orderResponse.send?.fees ?? null;
@@ -209,11 +228,40 @@ export class OrderService {
 
     switch (order.operationType) {
       case OperationType.SELL:
-        liriumOrder.sell = order.asset;
+        if (!order.tradeOperation) {
+          throw new BadRequestException('Trade operation is required');
+        }
+
+        liriumOrder.sell = {
+          settlement: order.tradeOperation.settlement,
+          commission: order.tradeOperation.commission,
+          expires_at: order.tradeOperation.expiresAt,
+          requires_confirmation_code: order.tradeOperation.requiresConfirmationCode,
+        };
         break;
 
       case OperationType.BUY:
-        liriumOrder.buy = order.tradeOperation?.settlement || order.asset;
+        if (!order.tradeOperation) {
+          throw new BadRequestException('Trade operation is required');
+        }
+
+        liriumOrder.buy = {
+          settlement: order.tradeOperation.settlement,
+          commission: order.tradeOperation.commission,
+          expires_at: order.tradeOperation.expiresAt,
+          requires_confirmation_code: order.tradeOperation.requiresConfirmationCode,
+        };
+        break;
+
+      case OperationType.SWAP:
+        if (!order.swap?.currency) {
+          throw new BadRequestException('Swap currency is required');
+        }
+
+        liriumOrder.swap = {
+          currency: order.swap.currency,
+          amount: order.swap.amount ?? order.asset.amount,
+        };
         break;
 
       case OperationType.SEND:
@@ -271,6 +319,7 @@ export class OrderService {
     }
     return result.rows[0].user_id;
   }
+
   async getOrderState(
     orderId: string,
     userId: string,
@@ -280,6 +329,7 @@ export class OrderService {
     await this.getOrder(orderId, companyId);
     return this.liriumService.getOrder(customerId, orderId);
   }
+
   async resendConfirmationCode(
     orderId: string,
     userId: string,
@@ -288,5 +338,55 @@ export class OrderService {
     const customerId = await this.getCustomerId(userId, companyId);
     await this.getOrder(orderId, companyId);
     await this.liriumService.resendOrderConfirmationCode(customerId, orderId);
+  }
+
+  async getSwapQuote(
+    body: SwapQuoteRequestDto,
+  ): Promise<SwapQuoteResponseDto> {
+    this.logger.log(`Getting swap quote ${JSON.stringify(body)}`);
+
+    const rates: LiriumExchangeRateDto[] =
+      await this.liriumService.getExchangeRates();
+
+    const fromCurrency: string = body.asset.currency;
+    const toCurrency: string = body.toCurrency;
+    const amount: number = Number(body.asset.amount);
+    if (fromCurrency === toCurrency) {
+      throw new BadRequestException('Invalid currency pair');
+    }
+
+    if (!amount || isNaN(amount)) {
+      throw new BadRequestException('Invalid amount');
+    }
+
+    const pair: LiriumExchangeRateDto | undefined = rates.find(
+      (r: LiriumExchangeRateDto) => r.currency === toCurrency,
+    );
+
+    if (!pair) {
+      throw new NotFoundException(
+        `No exchange rate found for ${fromCurrency} -> ${toCurrency}`,
+      );
+    }
+
+    // Swap normalmente es SELL implícito (from -> to)
+    const rawRate: string = pair.bid;
+
+    const rate: number = Number(rawRate);
+
+    if (!rate || isNaN(rate)) {
+      throw new BadRequestException('Invalid exchange rate');
+    }
+
+    const estimated: number = amount * rate;
+
+    return {
+      from: body.asset,
+      to: {
+        currency: toCurrency,
+        amount: estimated.toFixed(8),
+      },
+      rate: rawRate,
+    };
   }
 }

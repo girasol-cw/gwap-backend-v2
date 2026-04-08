@@ -25,6 +25,7 @@ describe('OrderService', () => {
     createCustomer: jest.fn(),
     getOrder: jest.fn(),
     resendOrderConfirmationCode: jest.fn(),
+    getExchangeRates: jest.fn(),
   };
 
   const mockDbService = {
@@ -670,6 +671,390 @@ describe('OrderService', () => {
       expect(
         mockLiriumService.resendOrderConfirmationCode,
       ).not.toHaveBeenCalled();
+    });
+  });
+  describe('createOrder - SWAP', () => {
+    const companyId = 'company-123';
+
+    const request: OrderRequestDto = {
+      userId: 'girasol-user-123',
+      operationType: OperationType.SWAP,
+      asset: {
+        currency: 'USDC',
+        amount: '100.00',
+      },
+      swap: {
+        currency: 'BTC',
+      },
+    };
+
+    const liriumResponse: LiriumOrderResponseDto = {
+      id: 'order-swap-123',
+      operation: 'swap',
+      state: 'pending',
+      asset: {
+        currency: 'USDC',
+        amount: '100.00',
+      },
+      swap: {
+        currency: 'BTC',
+        amount: '0.002',
+      },
+    };
+
+    it('should create a swap order correctly', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rows: [{ user_id: 'customer-123' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        });
+
+      (mockLiriumService.createOrder as jest.Mock).mockResolvedValue(
+        liriumResponse,
+      );
+
+      const result = await service.createOrder(request, companyId);
+
+      expect(result).toEqual(liriumResponse);
+
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_id: 'customer-123',
+          operation: OperationType.SWAP,
+          reference_id: expect.stringMatching(/^Swap\d{14}$/),
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          swap: {
+            currency: 'BTC',
+            amount: '100.00',
+          },
+        }),
+      );
+    });
+
+    it('should throw when swap currency is missing', async () => {
+      const invalidRequest: OrderRequestDto = {
+        ...request,
+        swap: {
+          currency: '',
+        },
+      };
+
+      mockPool.query.mockResolvedValueOnce({
+        rows: [{ user_id: 'customer-123' }],
+      });
+
+      await expect(
+        service.createOrder(invalidRequest, companyId),
+      ).rejects.toThrow(
+        new BadRequestException('Swap currency is required'),
+      );
+
+      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
+    });
+  });
+  describe('confirmOrder - SWAP', () => {
+    const companyId = 'company-123';
+
+    const confirmRequest: OrderConfirmRequestDto = {
+      userId: 'girasol-user-123',
+      orderId: 'order-swap-123',
+    };
+
+    const storedOrder: OrderModel = {
+      id: 'order-swap-123',
+      userId: 'customer-123',
+      referenceId: 'Swap20260408112233',
+      operation: OperationType.SWAP,
+      asset: {
+        currency: 'USDC',
+        amount: '100.00',
+      },
+      settlement: undefined as any,
+      status: 'pending',
+      createdAt: '2026-04-08T11:22:33Z',
+      orderBody: '{}',
+      orderResponse: '{}',
+      network: undefined as any,
+      fees: undefined as any,
+      destinationType: undefined as any,
+      destinationValue: undefined as any,
+      destinationAmount: undefined as any,
+      requiresConfirmationCode: false,
+    };
+
+    const confirmedResponse: LiriumOrderResponseDto = {
+      id: 'order-swap-123',
+      operation: 'swap',
+      state: 'processing',
+      asset: {
+        currency: 'USDC',
+        amount: '100.00',
+      },
+      swap: {
+        currency: 'BTC',
+        amount: '0.002',
+      },
+    };
+
+    it('should confirm swap order without customer payload', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({
+          rows: [{ user_id: 'customer-123' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [storedOrder],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        });
+
+      (mockLiriumService.confirmOrder as jest.Mock).mockResolvedValue(
+        confirmedResponse,
+      );
+
+      const result = await service.confirmOrder(confirmRequest, companyId);
+
+      expect(result).toEqual(confirmedResponse);
+
+      expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-123',
+        order_id: 'order-swap-123',
+      });
+    });
+  });
+  describe('getSwapQuote', () => {
+    it('should return a valid swap quote', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: '0.00002',
+          ask: '0.000021',
+        },
+      ]);
+
+      const result = await service.getSwapQuote({
+        asset: {
+          currency: 'USDC',
+          amount: '100.00',
+        },
+        toCurrency: 'BTC',
+      });
+
+      expect(result).toEqual({
+        from: {
+          currency: 'USDC',
+          amount: '100.00',
+        },
+        to: {
+          currency: 'BTC',
+          amount: '0.00200000',
+        },
+        rate: '0.00002',
+      });
+
+      expect(mockLiriumService.getExchangeRates).toHaveBeenCalled();
+    });
+
+    it('should throw when amount is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: '0.00002',
+          ask: '0.000021',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '0',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid amount'));
+    });
+
+    it('should throw when currency pair is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'USDC',
+          bid: '1',
+          ask: '1',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'USDC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid currency pair'));
+    });
+
+    it('should throw when exchange rate is not found', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'ETH',
+          bid: '0.0005',
+          ask: '0.0006',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(
+        new NotFoundException('No exchange rate found for USDC -> BTC'),
+      );
+    });
+
+    it('should throw when exchange rate is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: 'abc',
+          ask: '0.000021',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid exchange rate'));
+    });
+  });
+  describe('getSwapQuote', () => {
+    it('should return a valid swap quote', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: '0.00002',
+          ask: '0.000021',
+        },
+      ]);
+
+      const result = await service.getSwapQuote({
+        asset: {
+          currency: 'USDC',
+          amount: '100.00',
+        },
+        toCurrency: 'BTC',
+      });
+
+      expect(result).toEqual({
+        from: {
+          currency: 'USDC',
+          amount: '100.00',
+        },
+        to: {
+          currency: 'BTC',
+          amount: '0.00200000',
+        },
+        rate: '0.00002',
+      });
+
+      expect(mockLiriumService.getExchangeRates).toHaveBeenCalled();
+    });
+
+    it('should throw when amount is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: '0.00002',
+          ask: '0.000021',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '0',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid amount'));
+    });
+
+    it('should throw when currency pair is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'USDC',
+          bid: '1',
+          ask: '1',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'USDC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid currency pair'));
+    });
+
+    it('should throw when exchange rate is not found', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'ETH',
+          bid: '0.0005',
+          ask: '0.0006',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(
+        new NotFoundException('No exchange rate found for USDC -> BTC'),
+      );
+    });
+
+    it('should throw when exchange rate is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([
+        {
+          currency: 'BTC',
+          bid: 'abc',
+          ask: '0.000021',
+        },
+      ]);
+
+      await expect(
+        service.getSwapQuote({
+          asset: {
+            currency: 'USDC',
+            amount: '100.00',
+          },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid exchange rate'));
     });
   });
 });

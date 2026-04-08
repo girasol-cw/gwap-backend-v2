@@ -1,6 +1,7 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import {
   LiriumCustomerAccountResponseDto,
+  LiriumExchangeRatesResponseDto,
   LiriumOrderConfirmRequestDto,
   LiriumOrderRequestDto,
   LiriumOrderResponseDto,
@@ -38,7 +39,6 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     const response = await this.httpService.get<any>(
       `${process.env.LIRIUM_API_URL}/customers/${accountId}/receiving_addresses`,
     );
-    debugger;
     const responseDto = new AddWalletResponseDto();
     if (
       !response.data?.receiving_addresses ||
@@ -297,23 +297,37 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       return response.data;
     });
   }
+
   async getOrder(
     customerId: string,
     orderId: string,
   ): Promise<LiriumOrderResponseDto> {
-    const response = await this.httpService.get<LiriumOrderResponseDto>(
-      `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}`,
-    );
-    return response.data;
+    return this.retryOperation(async () => {
+      const response = await this.httpService.get<LiriumOrderResponseDto>(
+        `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}`,
+      );
+      return response.data;
+    });
   }
 
   async resendOrderConfirmationCode(
     customerId: string,
     orderId: string,
   ): Promise<void> {
-    await this.httpService.post(
-      `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}/resend_code`,
-      {},
-    );
+    await this.retryOperation(async () => {
+      await this.httpService.post(
+        `${process.env.LIRIUM_API_URL}/customers/${customerId}/orders/${orderId}/resend_code`,
+        {},
+      );
+    });
+  }
+
+  async getExchangeRates(): Promise<LiriumExchangeRatesResponseDto> {
+    return this.retryOperation(async () => {
+      const response = await this.httpService.get<LiriumExchangeRatesResponseDto>(
+        `${process.env.LIRIUM_API_URL}/exchange_rates`,
+      );
+      return response.data;
+    });
   }
 }

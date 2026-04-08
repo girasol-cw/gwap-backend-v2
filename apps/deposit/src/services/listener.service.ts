@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'libs/shared/src/services/database.service';
 import { LiriumRequestServiceAbstract } from 'libs/shared/src/interfaces/lirium-request.service.abstract';
 import {
@@ -7,7 +6,7 @@ import {
   LiriumOrderResponseDto,
 } from '../dto/lirium.dto';
 import { AssetDto, OperationType } from '../dto/order.dto';
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class ListenerService {
@@ -50,35 +49,36 @@ export class ListenerService {
   }
 
   private async createDeposit(customer: string, asset: AssetDto, companyId: string) {
-    let value = Number(asset.amount);
-    if (value <= 0) {
-      this.logger.log(`Skipping deposit for ${customer} because amount is 0`);
+    const value = Number(asset.amount);
+    if (!value || value <= 0) {
+      this.logger.log(`Skipping deposit for ${customer} because amount is invalid`);
       return;
     }
-    this.logger.log(`Creating deposit for ${customer} ${asset}`);
-    console.log('asset', asset);
+    this.logger.log(`Creating deposit for ${customer} ${JSON.stringify(asset)}`);
+    this.logger.debug('asset', asset);
     const liriumOrder: LiriumOrderRequestDto = {
       customer_id: customer,
       reference_id:
-        'Sell' +
-        new Date()
-          .toISOString()
-          .replace(/[-:T.]/g, '')
-          .slice(0, 14),
+        'Sell' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
       operation: OperationType.SELL,
-      asset: asset,
-      sell: asset,
+      asset,
+      sell: {
+        settlement: {
+          currency: asset.currency,
+          amount: asset.amount,
+        },
+      },
     };
 
     try {
-      this.logger.log(`Creating order for ${customer} ${asset}`);
-      console.log('lirium-Order-Request', liriumOrder);
+      this.logger.log(`Creating order for ${customer} ${JSON.stringify(asset)}`);
+      this.logger.debug('lirium-Order-Request', liriumOrder);
       const order = await this.liriumService.createOrder(liriumOrder);
       await this.saveDeposit(customer, order, companyId);
       await this.confirmDeposit(customer, order, companyId);
     } catch (error) {
       this.logger.error(
-        `Error creating deposit for ${customer} ${asset}`,
+        `Error creating deposit for ${customer} ${JSON.stringify(asset)}`,
         error,
       );
       return;
@@ -91,7 +91,7 @@ export class ListenerService {
     companyId: string,
   ) {
     this.logger.log(`Confirming deposit for ${customer} `);
-    console.log('order', order);
+    this.logger.debug('order', order);
     const currency =
       order.sell?.settlement?.currency ?? order.asset?.currency ?? '';
 
@@ -106,13 +106,13 @@ export class ListenerService {
         amount,
       },
     };
-    console.log(`Lirium order confirm request ${liriumOrder}`);
+    this.logger.debug('Lirium order confirm request', liriumOrder);
     try {
       const confirmedOrder = await this.liriumService.confirmOrder(liriumOrder);
       await this.updateDeposit(customer, confirmedOrder, companyId);
     } catch (error) {
       this.logger.error(
-        `Error confirming deposit for ${customer} ${order}`,
+        `Error confirming deposit for ${customer} ${JSON.stringify(order)}`,
         error,
       );
 
@@ -121,7 +121,7 @@ export class ListenerService {
   }
 
   private async saveDeposit(customer: string, order: LiriumOrderResponseDto, companyId: string) {
-    this.logger.log(`Saving deposit for ${customer} ${order}`);
+    this.logger.log(`Saving deposit for ${customer} ${JSON.stringify(order)}`);
     await this.dbService.pool.query(this.SQL.saveDeposit, [
       order.id,
       companyId,
@@ -132,7 +132,7 @@ export class ListenerService {
     ]);
   }
   private async updateDeposit(customer: string, order: LiriumOrderResponseDto, companyId: string) {
-    this.logger.log(`Updating deposit for ${customer} ${order}`);
+    this.logger.log(`Updating deposit for ${customer} ${JSON.stringify(order)}`);
     await this.dbService.pool.query(this.SQL.updateDeposit, [
       true,
       order.sell?.settlement?.amount,

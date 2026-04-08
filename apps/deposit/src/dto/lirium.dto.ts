@@ -1,13 +1,35 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AssetDto, OperationType, SendOperationDto } from './order.dto';
+import {
+  AssetDto,
+  OperationType,
+  SendOperationDto,
+} from './order.dto';
+
+export type LiriumTradeRequestDto = {
+  settlement?: AssetDto;
+  commission?: {
+    type?: string;
+    value?: string;
+  };
+  expires_at?: string;
+  requires_confirmation_code?: boolean;
+};
+
+export type LiriumSwapRequestDto = {
+  currency: string;
+  amount?: string;
+  expires_at?: string;
+  requires_confirmation_code?: boolean;
+};
 
 export type LiriumOrderRequestDto = {
   customer_id: string;
   reference_id: string;
   operation: OperationType;
   asset: AssetDto;
-  sell?: AssetDto;
-  buy?: AssetDto;
+  sell?: LiriumTradeRequestDto;
+  buy?: LiriumTradeRequestDto;
+  swap?: LiriumSwapRequestDto;
   send?: SendOperationDto;
 };
 
@@ -54,6 +76,13 @@ export type LiriumTradeResponseDto = {
   requires_confirmation_code?: boolean;
 };
 
+export type LiriumSwapResponseDto = {
+  currency?: string;
+  amount?: string;
+  expires_at?: string;
+  requires_confirmation_code?: boolean;
+};
+
 export type LiriumOrderResponseDto = {
   id: string;
   operation: string;
@@ -66,6 +95,7 @@ export type LiriumOrderResponseDto = {
   asset: AssetDto;
   sell?: LiriumTradeResponseDto;
   buy?: LiriumTradeResponseDto;
+  swap?: LiriumSwapResponseDto;
   send?: LiriumSendResponseDto;
 };
 
@@ -76,3 +106,11 @@ export type LiriumOrderConfirmRequestDto = {
   reference_id?: string;
   customer?: AssetDto;
 };
+
+export type LiriumExchangeRateDto = {
+  currency: string;
+  bid: string;
+  ask: string;
+};
+
+export type LiriumExchangeRatesResponseDto = LiriumExchangeRateDto[];

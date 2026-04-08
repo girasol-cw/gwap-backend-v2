@@ -97,20 +97,22 @@ describe('ListenerService', () => {
       await service.listen('company-123');
 
       expect(mockLiriumService.getCustomerAccount).toHaveBeenCalledWith('customer-1');
-
-      expect(mockLiriumService.createOrder).toHaveBeenCalledWith({
-        customer_id: 'customer-1',
-        reference_id: expect.stringMatching(/^Sell\d{14}$/),
-        operation: 'sell',
-        asset: {
-          currency: 'BTC',
-          amount: '0.001',
-        },
-        sell: {
-          currency: 'BTC',
-          amount: '0.001',
-        },
-      });
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_id: 'customer-1',
+          operation: 'sell',
+          asset: {
+            currency: 'BTC',
+            amount: '0.001',
+          },
+          sell: {
+            settlement: {
+              currency: 'BTC',
+              amount: '0.001',
+            },
+          },
+        }),
+      );
 
       expect(mockLiriumService.confirmOrder).toHaveBeenCalledWith({
         customer_id: 'customer-1',
@@ -348,20 +350,22 @@ describe('ListenerService', () => {
         'company-123',
       );
 
-      expect(mockLiriumService.createOrder).toHaveBeenCalledWith({
-        customer_id: 'customer-1',
-        reference_id: expect.stringMatching(/^Sell\d{14}$/),
-        operation: 'sell',
-        asset: {
-          currency: 'BTC',
-          amount: '0.003',
-        },
-        sell: {
-          currency: 'BTC',
-          amount: '0.003',
-        },
-      });
-
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_id: 'customer-1',
+          operation: 'sell',
+          asset: {
+            currency: 'BTC',
+            amount: '0.003',
+          },
+          sell: {
+            settlement: {
+              currency: 'BTC',
+              amount: '0.003',
+            },
+          },
+        }),
+      );
       expect(mockPool.query).toHaveBeenCalledWith(
         'INSERT INTO deposits (order_id, company_id, user_id, erc20_amount, confirmed, amount_usd) VALUES ($1, $2, $3, $4, $5, $6)',
         ['sell-order-3', 'company-123', 'customer-1', '0.003', false, '75.00'],

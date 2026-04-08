@@ -1,9 +1,14 @@
-import { AddWalletResponseDto } from "apps/wallet-service/src/dto/add-wallet.dto";
-import { LiriumOrderRequestDto } from "apps/deposit/src/dto/lirium.dto";
-import { LiriumOrderResponseDto } from "apps/deposit/src/dto/lirium.dto";
-import { LiriumOrderConfirmRequestDto } from "apps/deposit/src/dto/lirium.dto";
-import { LiriumCustomerAccountResponseDto } from "apps/deposit/src/dto/lirium.dto";
-import { AddWalletRequestDto } from "apps/wallet-service/src/dto/add-wallet.dto";
+import {
+  LiriumCustomerAccountResponseDto,
+  LiriumExchangeRatesResponseDto,
+  LiriumOrderConfirmRequestDto,
+  LiriumOrderRequestDto,
+  LiriumOrderResponseDto,
+} from 'apps/deposit/src/dto/lirium.dto';
+import {
+  AddWalletRequestDto,
+  AddWalletResponseDto,
+} from 'apps/wallet-service/src/dto/add-wallet.dto';
 
 export abstract class LiriumRequestServiceAbstract {
   abstract createOrder(
@@ -29,4 +34,5 @@ export abstract class LiriumRequestServiceAbstract {
     customerId: string,
     orderId: string,
   ): Promise<void>;
+  abstract getExchangeRates(): Promise<LiriumExchangeRatesResponseDto>;
 }
