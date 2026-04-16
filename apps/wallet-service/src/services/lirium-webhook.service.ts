@@ -7,6 +7,7 @@ import {
 import { DatabaseService } from 'libs/shared';
 import * as crypto from 'node:crypto';
 import * as jwt from 'jsonwebtoken';
+import { DepositForwarderService } from './deposit-forwarder.service';
 
 type JwtClaims = {
   digest?: string;
@@ -81,7 +82,10 @@ const LIRIUM_WEBHOOK_PUBLIC_KEYS: Record<string, string> = {
 
 @Injectable()
 export class LiriumWebhookService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly depositForwarderService: DepositForwarderService,
+  ) {}
 
   async handleWebhook(
     signature: string | undefined,
@@ -96,6 +100,7 @@ export class LiriumWebhookService {
     }
 
     const order = event.order!;
+    const orderId = order.id!;
     const user = await this.findUser(order.customer_id!);
 
     await this.databaseService.pool.query(
@@ -112,8 +117,9 @@ export class LiriumWebhookService {
         origin_type,
         origin_value,
         origin_amount,
-        payload
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        payload,
+        forward_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ON CONFLICT (order_id) DO UPDATE SET
         user_id = EXCLUDED.user_id,
         erc20_amount = EXCLUDED.erc20_amount,
@@ -129,7 +135,7 @@ export class LiriumWebhookService {
         payload = EXCLUDED.payload,
         updated_at = CURRENT_TIMESTAMP`,
       [
-        order.id,
+        orderId,
         user.user_id,
         order.asset?.amount ?? '0',
         this.isConfirmed(event.action, order.state),
@@ -142,8 +148,11 @@ export class LiriumWebhookService {
         order.receive?.origin?.value ?? null,
         order.receive?.origin?.amount ?? null,
         payload,
+        'pending',
       ],
     );
+
+    await this.depositForwarderService.forwardDeposit(orderId, user.company_id);
   }
 
   private findUser = async (userId: string): Promise<UserRow> => {

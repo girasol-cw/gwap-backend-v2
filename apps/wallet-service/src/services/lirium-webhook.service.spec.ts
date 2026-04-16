@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DatabaseService } from 'libs/shared';
 import * as crypto from 'node:crypto';
 import * as jwt from 'jsonwebtoken';
+import { DepositForwarderService } from './deposit-forwarder.service';
 import { LiriumWebhookService } from './lirium-webhook.service';
 
 jest.mock('jsonwebtoken');
@@ -13,6 +14,9 @@ describe('LiriumWebhookService', () => {
     pool: {
       query: jest.fn(),
     },
+  };
+  const mockDepositForwarderService = {
+    forwardDeposit: jest.fn(),
   };
 
   const eventPayload = {
@@ -47,6 +51,10 @@ describe('LiriumWebhookService', () => {
           provide: DatabaseService,
           useValue: mockDatabaseService,
         },
+        {
+          provide: DepositForwarderService,
+          useValue: mockDepositForwarderService,
+        },
       ],
     }).compile();
 
@@ -69,6 +77,7 @@ describe('LiriumWebhookService', () => {
         rows: [{ user_id: 'lirium-user-123', company_id: 'company-123' }],
       })
       .mockResolvedValueOnce({ rows: [] });
+    mockDepositForwarderService.forwardDeposit.mockResolvedValueOnce(true);
 
     await service.handleWebhook('signed-token', rawBody, eventPayload);
 
@@ -95,7 +104,12 @@ describe('LiriumWebhookService', () => {
         'tx-hash-123',
         '0.000005',
         eventPayload,
+        'pending',
       ],
+    );
+    expect(mockDepositForwarderService.forwardDeposit).toHaveBeenCalledWith(
+      'order-123',
+      'company-123',
     );
   });
 
@@ -121,6 +135,7 @@ describe('LiriumWebhookService', () => {
     });
 
     expect(mockDatabaseService.pool.query).not.toHaveBeenCalled();
+    expect(mockDepositForwarderService.forwardDeposit).not.toHaveBeenCalled();
   });
 
   it('rejects webhook signatures with a wrong digest', async () => {

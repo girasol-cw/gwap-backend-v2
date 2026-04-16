@@ -56,6 +56,7 @@ import { globalRegistry, MetricsService } from './metrics.service';
 import { GetWalletsService } from './services/get-wallets.service';
 import { OrderService } from './services/order.service';
 import { WithdrawService } from './services/withdraw.service';
+import { DepositForwarderService } from './services/deposit-forwarder.service';
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 
@@ -70,6 +71,7 @@ export class WalletServiceController {
     private readonly liriumKycService: LiriumKycServiceAbstract,
     private readonly withdrawService: WithdrawService,
     private readonly orderService: OrderService,
+    private readonly depositForwarderService: DepositForwarderService,
     private readonly databaseService: DatabaseService,
   ) { }
 
@@ -403,6 +405,29 @@ export class WalletServiceController {
     liriumFile.file = file;
 
     await this.liriumKycService.uploadKyc(liriumFile, companyId);
+  }
+
+  @Post('deposits/:orderId/forward')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Forward a stored deposit to the downstream settlement service',
+    description: 'Attempts an idempotent forward for a deposit captured from Lirium webhooks.',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'Lirium receive order identifier',
+    example: '2fd88ea196c746238cad2a14ff418a61',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Deposit forwarded or already processed',
+  })
+  async forwardDeposit(
+    @CompanyId() companyId: string,
+    @Param('orderId') orderId: string,
+  ): Promise<void> {
+    await this.depositForwarderService.forwardDeposit(orderId, companyId);
   }
 
   @Post('wallet/:accountId/withdraw')

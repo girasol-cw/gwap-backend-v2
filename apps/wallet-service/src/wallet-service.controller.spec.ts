@@ -6,6 +6,7 @@ import { DatabaseService, LiriumRequestServiceAbstract, LiriumKycServiceAbstract
 import { GetWalletsService } from './services/get-wallets.service';
 import { WithdrawService } from './services/withdraw.service';
 import { OrderService } from './services/order.service';
+import { DepositForwarderService } from './services/deposit-forwarder.service';
 import { OrderIdentifierType } from './dto/order.dto';
 
 describe('WalletServiceController', () => {
@@ -40,6 +41,9 @@ describe('WalletServiceController', () => {
     getOrderState: jest.fn(),
     resendConfirmationCode: jest.fn(),
     getSwapQuote: jest.fn(),
+  };
+  const mockDepositForwarderService: jest.Mocked<Partial<DepositForwarderService>> = {
+    forwardDeposit: jest.fn(),
   };
   const mockDatabaseService = {
     pool: {
@@ -78,6 +82,10 @@ describe('WalletServiceController', () => {
         {
           provide: OrderService,
           useValue: mockOrderService,
+        },
+        {
+          provide: DepositForwarderService,
+          useValue: mockDepositForwarderService,
         },
         {
           provide: DatabaseService,
@@ -291,6 +299,19 @@ describe('WalletServiceController', () => {
         '# HELP test_metric test\n# TYPE test_metric counter\ntest_metric 1',
       );
       expect(mockMetricsService.getMetrics).toHaveBeenCalled();
+    });
+  });
+
+  describe('forwardDeposit', () => {
+    it('should delegate to DepositForwarderService', async () => {
+      (mockDepositForwarderService.forwardDeposit as jest.Mock).mockResolvedValue(true);
+
+      await expect(controller.forwardDeposit(companyId, 'order-123')).resolves.toBeUndefined();
+
+      expect(mockDepositForwarderService.forwardDeposit).toHaveBeenCalledWith(
+        'order-123',
+        companyId,
+      );
     });
   });
 

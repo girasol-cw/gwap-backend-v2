@@ -53,6 +53,11 @@ CREATE TABLE deposits (
   origin_value TEXT NULL,
   origin_amount TEXT NULL,
   payload JSONB NULL,
+  forward_status TEXT NOT NULL DEFAULT 'pending',
+  forward_attempts INTEGER NOT NULL DEFAULT 0,
+  forwarded_at TIMESTAMP NULL,
+  forward_last_error TEXT NULL,
+  forward_response JSONB NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (order_id),
@@ -103,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_deposits_company_id ON deposits (company_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_confirmed ON deposits (confirmed);
 CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits (status);
 CREATE INDEX IF NOT EXISTS idx_deposits_origin_value ON deposits (origin_value);
+CREATE INDEX IF NOT EXISTS idx_deposits_forward_status ON deposits (forward_status);
 
 CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
   ON deposits (order_id) WHERE confirmed = false;

@@ -6,6 +6,7 @@ import { GetWalletsService } from './services/get-wallets.service';
 import { WithdrawService } from './services/withdraw.service';
 import { OrderService } from './services/order.service';
 import { LiriumWebhookController } from './controllers/lirium-webhook.controller';
+import { DepositForwarderService } from './services/deposit-forwarder.service';
 import { LiriumWebhookService } from './services/lirium-webhook.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { LiriumWebhookService } from './services/lirium-webhook.service';
     GetWalletsService,
     WithdrawService,
     OrderService,
+    DepositForwarderService,
     LiriumWebhookService,
   ],
   exports: []
