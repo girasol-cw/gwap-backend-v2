@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -82,6 +83,8 @@ const LIRIUM_WEBHOOK_PUBLIC_KEYS: Record<string, string> = {
 
 @Injectable()
 export class LiriumWebhookService {
+  private readonly logger = new Logger(LiriumWebhookService.name);
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly depositForwarderService: DepositForwarderService,
@@ -152,7 +155,14 @@ export class LiriumWebhookService {
       ],
     );
 
-    await this.depositForwarderService.forwardDeposit(orderId, user.company_id);
+    try {
+      await this.depositForwarderService.forwardDeposit(orderId, user.company_id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown forwarding error';
+      this.logger.error(
+        `Deposit ${orderId} was stored but could not be forwarded immediately: ${message}`,
+      );
+    }
   }
 
   private findUser = async (userId: string): Promise<UserRow> => {

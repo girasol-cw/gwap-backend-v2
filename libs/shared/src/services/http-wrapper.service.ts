@@ -109,7 +109,7 @@ export class HttpWrapperService {
         id: requestId,
         verb: 'POST',
         path: url,
-        body: data,
+        body: this.sanitizeRequestBody(data, requestConfig.headers),
         response_body: formattedResponse.data,
         error: "{}",
         status_code: formattedResponse.status.toString(),
@@ -124,7 +124,7 @@ export class HttpWrapperService {
         id: requestId,
         verb: 'POST',
         path: url,
-        body: data,
+        body: this.sanitizeRequestBody(data, requestConfig.headers),
         response_body: null,
         error: JSON.stringify(errorHandle),
         status_code: error.response?.status?.toString() || '500',
@@ -201,6 +201,7 @@ export class HttpWrapperService {
     config: AxiosRequestConfig & HttpWrapperConfig,
   ): Promise<HttpWrapperResponse<T>> {
     const requestId = this.generateRequestId();
+    let requestHeaders: AxiosRequestConfig['headers'] = config.headers;
 
     try {
       // Get the token
@@ -213,6 +214,7 @@ export class HttpWrapperService {
         Authorization: `Bearer ${token}`,
         ...(config.headers || {}),
       };
+      requestHeaders = headers;
 
       const requestConfig: AxiosRequestConfig = {
         ...config,
@@ -231,7 +233,7 @@ export class HttpWrapperService {
         id: requestId,
         verb: config.method?.toUpperCase() || 'UNKNOWN',
         path: config.url || '',
-        body: config.data,
+        body: this.sanitizeRequestBody(config.data, headers),
         response_body: formattedResponse.data,
         error: "",
         status_code: formattedResponse.status.toString(),
@@ -249,7 +251,7 @@ export class HttpWrapperService {
         id: requestId,
         verb: config.method?.toUpperCase() || 'UNKNOWN',
         path: config.url || '',
-        body: config.data,
+        body: this.sanitizeRequestBody(config.data, requestHeaders),
         response_body: null,
         error: JSON.stringify(error),
         status_code: error.response?.status?.toString() || '500',
@@ -335,6 +337,81 @@ export class HttpWrapperService {
    */
   private generateRequestId(): string {
     return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  private extractMultipartFields(data: any): Array<Record<string, unknown>> {
+    if (!data || !Array.isArray(data._streams)) {
+      return [];
+    }
+
+    const fields: Array<Record<string, unknown>> = [];
+    const streams = data._streams;
+
+    for (let index = 0; index < streams.length; index += 1) {
+      const part = streams[index];
+      if (typeof part !== 'string') {
+        continue;
+      }
+
+      const nameMatch = part.match(/name="([^"]+)"/);
+      if (!nameMatch) {
+        continue;
+      }
+
+      const value = streams[index + 1];
+      const fieldName = nameMatch[1];
+      const filenameMatch = part.match(/filename="([^"]+)"/);
+      const contentTypeMatch = part.match(/Content-Type: ([^\r\n]+)/i);
+
+      if (Buffer.isBuffer(value)) {
+        fields.push({
+          name: fieldName,
+          filename: filenameMatch?.[1] ?? null,
+          contentType: contentTypeMatch?.[1] ?? null,
+          size: value.length,
+          type: 'file',
+        });
+        continue;
+      }
+
+      if (typeof value === 'string' && value !== data.constructor?.LINE_BREAK) {
+        fields.push({
+          name: fieldName,
+          value,
+          type: 'field',
+        });
+      }
+    }
+
+    return fields;
+  }
+
+  private isMultipartPayload(data: any, headers?: any): boolean {
+    const contentType =
+      headers?.['content-type'] ??
+      headers?.['Content-Type'] ??
+      (typeof data?.getHeaders === 'function' ? data.getHeaders()?.['content-type'] : undefined);
+
+    return typeof contentType === 'string' && contentType.includes('multipart/form-data');
+  }
+
+  private sanitizeRequestBody(data: any, headers?: any): any {
+    if (!data) {
+      return data;
+    }
+
+    if (this.isMultipartPayload(data, headers)) {
+      const multipartHeaders =
+        typeof data?.getHeaders === 'function' ? data.getHeaders() : headers;
+
+      return {
+        type: 'multipart/form-data',
+        headers: multipartHeaders,
+        fields: this.extractMultipartFields(data),
+      };
+    }
+
+    return data;
   }
 
   /**

@@ -170,4 +170,29 @@ describe('LiriumWebhookService', () => {
       service.handleWebhook('signed-token', rawBody, eventPayload),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it('does not fail the webhook when forwarding to SEND_URL throws', async () => {
+    const rawBody = Buffer.from(JSON.stringify(eventPayload));
+    const digest = crypto.createHash('sha256').update(rawBody).digest('hex');
+
+    (jwt.decode as jest.Mock).mockReturnValue({ iss: 'lirium-sandbox' });
+    (jwt.verify as jest.Mock).mockReturnValue({
+      digest,
+      iat: Math.floor(Date.now() / 1000),
+      iss: 'lirium-sandbox',
+    });
+
+    mockDatabaseService.pool.query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: 'lirium-user-123', company_id: 'company-123' }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    mockDepositForwarderService.forwardDeposit.mockRejectedValueOnce(
+      new Error('SEND_URL unavailable'),
+    );
+
+    await expect(
+      service.handleWebhook('signed-token', rawBody, eventPayload),
+    ).resolves.toBeUndefined();
+  });
 });

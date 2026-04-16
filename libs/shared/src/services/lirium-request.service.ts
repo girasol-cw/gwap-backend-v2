@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import {
   LiriumCustomerAccountResponseDto,
   LiriumExchangeRatesResponseDto,
@@ -19,6 +19,8 @@ import { LiriumRequestServiceAbstract } from '../interfaces/lirium-request.servi
 
 @Injectable()
 export class LiriumRequestService extends LiriumRequestServiceAbstract {
+  private readonly logger = new Logger(LiriumRequestService.name);
+
   constructor(
     private readonly httpService: HttpWrapperService,
     private readonly databaseService: DatabaseService,
@@ -204,18 +206,16 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
         // Solo reintentar si es un error que vale la pena reintentar
         if (this.shouldRetry(lastError) && attempt < maxRetries) {
-          console.log(
-            `❌ attempt ${attempt} failed, retrying in ${delay}ms...`,
-            lastError.message,
+          this.logger.warn(
+            `Attempt ${attempt} failed, retrying in ${delay}ms: ${lastError.message}`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // Exponential backoff
         } else {
           // No reintentar o último intento
           if (attempt === maxRetries) {
-            console.log(
-              `💥 All ${maxRetries} attempts failed, throwing final error:`,
-              lastError,
+            this.logger.error(
+              `All ${maxRetries} attempts failed, throwing final error: ${lastError.message}`,
             );
           }
           throw lastError;
