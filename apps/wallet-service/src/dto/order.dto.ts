@@ -160,10 +160,16 @@ export class SendOperationDto {
 
 export class OrderRequestDto {
   @ApiProperty({
-    description: 'Girasol User ID',
+    description: 'Legacy field for the Girasol account ID used to resolve the Lirium customer',
     example: 'user123',
   })
   userId: string;
+
+  @ApiPropertyOptional({
+    description: 'Preferred field for the Girasol account ID used to resolve the Lirium customer',
+    example: 'acc123',
+  })
+  accountId?: string;
 
   @ApiPropertyOptional({
     description: 'Lirium Order ID',
@@ -211,10 +217,16 @@ export class OrderRequestDto {
 
 export class OrderConfirmRequestDto {
   @ApiProperty({
-    description: 'Girasol User ID',
+    description: 'Legacy field for the Girasol account ID used to resolve the Lirium customer',
     example: 'user123',
   })
   userId: string;
+
+  @ApiPropertyOptional({
+    description: 'Preferred field for the Girasol account ID used to resolve the Lirium customer',
+    example: 'acc123',
+  })
+  accountId?: string;
 
   @ApiPropertyOptional({
     description: 'Lirium Order ID',

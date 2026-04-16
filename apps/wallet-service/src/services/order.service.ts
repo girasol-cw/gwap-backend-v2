@@ -75,7 +75,8 @@ export class OrderService {
 
   async createOrder(order: OrderRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
     this.logger.log(`Creating order ${JSON.stringify(order)}`);
-    const customerId = await this.getCustomerId(order.userId, companyId);
+    const accountId = this.resolveAccountId(order);
+    const customerId = await this.getCustomerId(accountId, companyId);
     order.userId = customerId;
     const liriumOrder = this.buildLiriumOrder(order);
     const orderResponse: LiriumOrderResponseDto = await this.liriumService.createOrder(liriumOrder);
@@ -88,7 +89,8 @@ export class OrderService {
     companyId: string,
     identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
-    const customerId = await this.getCustomerId(order.userId, companyId);
+    const accountId = this.resolveAccountId(order);
+    const customerId = await this.getCustomerId(accountId, companyId);
     if (!order.orderId) {
       throw new BadRequestException('Lirium Order ID is required');
     }
@@ -133,11 +135,11 @@ export class OrderService {
 
   async getOrderState(
     orderId: string,
-    userId: string,
+    accountId: string,
     companyId: string,
     identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
-    const customerId = await this.getCustomerId(userId, companyId);
+    const customerId = await this.getCustomerId(accountId, companyId);
     const resolvedOrderId = await this.resolveOrderId(
       orderId,
       identifierType,
@@ -150,11 +152,11 @@ export class OrderService {
 
   async resendConfirmationCode(
     orderId: string,
-    userId: string,
+    accountId: string,
     companyId: string,
     identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<void> {
-    const customerId = await this.getCustomerId(userId, companyId);
+    const customerId = await this.getCustomerId(accountId, companyId);
     const resolvedOrderId = await this.resolveOrderId(
       orderId,
       identifierType,
@@ -445,5 +447,11 @@ export class OrderService {
     }
 
     return result.rows[0].user_id;
+  }
+
+  private resolveAccountId(
+    order: Pick<OrderRequestDto, 'accountId' | 'userId'> | Pick<OrderConfirmRequestDto, 'accountId' | 'userId'>,
+  ): string {
+    return order.accountId ?? order.userId;
   }
 }

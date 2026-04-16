@@ -23,7 +23,7 @@ export interface LiriumUploadedFile {
 }
 
 export class LiriumFileDto {
-    @IsNotEmpty({ message: 'User ID is required to upload KYC' })
+    @IsNotEmpty({ message: 'Girasol account ID is required to upload KYC' })
     @IsString()
     user_id: string;
 

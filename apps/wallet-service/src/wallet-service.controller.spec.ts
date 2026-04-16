@@ -273,7 +273,7 @@ describe('WalletServiceController', () => {
 
       await expect(
         controller.getWallet(companyId, userId),
-      ).rejects.toThrow(`user with id ${userId} not found`);
+      ).rejects.toThrow(`user with account id ${userId} not found`);
     });
 
     it('should throw BadRequestException for generic service errors', async () => {

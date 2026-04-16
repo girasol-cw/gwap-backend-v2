@@ -39,7 +39,7 @@ export class AddWalletRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({ 
-    description: 'Unique identifier for the user',
+    description: 'Girasol user reference used as the customer reference_id in Lirium',
     example: 'user123'
   })
   userId: string;
@@ -55,7 +55,7 @@ export class AddWalletRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({ 
-    description: 'Account identifier',
+    description: 'Girasol account ID used as the external key for this customer',
     example: 'acc123'
   })
   accountId: string;
@@ -226,14 +226,14 @@ export class AddWalletResponseDto {
   email: string;
 
   @ApiProperty({ 
-    description: 'Account identifier',
-    example: 'acc123'
+    description: 'Legacy response field that currently contains the Lirium customer ID',
+    example: '2fd88ea196c746238cad2a14ff418a61'
   })
   accountId: string;
 
   @ApiProperty({ 
-    description: 'Unique identifier for the user',
-    example: 'user123'
+    description: 'Legacy response field that currently contains the same Lirium customer ID',
+    example: '2fd88ea196c746238cad2a14ff418a61'
   })
   userId: string;
 

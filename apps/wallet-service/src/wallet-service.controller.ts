@@ -119,16 +119,16 @@ export class WalletServiceController {
     }
   }
 
-  @Get('wallet/:userId')
+  @Get('wallet/:accountId')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
     summary: 'Get wallet information for a user',
-    description: 'Retrieves wallet addresses and information for the specified user ID'
+    description: 'Retrieves wallet addresses and information for the specified Girasol account ID'
   })
   @ApiParam({
-    name: 'userId',
+    name: 'accountId',
     description: 'Girasol account ID',
-    example: 'user123',
+    example: 'acc123',
     required: true
   })
   @ApiResponse({
@@ -153,10 +153,10 @@ export class WalletServiceController {
   })
   async getWallet(
     @CompanyId() companyId: string,
-    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
   ): Promise<{ message: string; data: AddWalletResponseDto }> {
     try {
-      const result = await this.getWalletsService.getWallets(userId, companyId);
+      const result = await this.getWalletsService.getWallets(accountId, companyId);
       return {
         message:
           result.address == null || result.address.length === 0
@@ -166,7 +166,7 @@ export class WalletServiceController {
       };
     } catch (error) {
       if (error.message.includes('not found')) {
-        throw new NotFoundException(`user with id ${userId} not found`);
+        throw new NotFoundException(`user with account id ${accountId} not found`);
       }
 
       throw new BadRequestException(error);
@@ -267,13 +267,13 @@ export class WalletServiceController {
     return this.orderService.confirmOrder(body, companyId, idType);
   }
 
-  @Get('order/:orderId/user/:userId')
+  @Get('order/:orderId/user/:accountId')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
-    summary: 'Get order state',
+    summary: 'Get order state for a Girasol account',
   })
   @ApiParam({ name: 'orderId', example: 'ord_123' })
-  @ApiParam({ name: 'userId', example: 'acc123' })
+  @ApiParam({ name: 'accountId', example: 'acc123', description: 'Girasol account ID' })
   @ApiQuery({
     name: 'idType',
     required: false,
@@ -283,19 +283,19 @@ export class WalletServiceController {
   async getOrderState(
     @CompanyId() companyId: string,
     @Param('orderId') orderId: string,
-    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
     @Query('idType') idType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
-    return this.orderService.getOrderState(orderId, userId, companyId, idType);
+    return this.orderService.getOrderState(orderId, accountId, companyId, idType);
   }
 
-  @Post('order/:orderId/resend-code/user/:userId')
+  @Post('order/:orderId/resend-code/user/:accountId')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
-    summary: 'Resend confirmation code for order',
+    summary: 'Resend confirmation code for a Girasol account order',
   })
   @ApiParam({ name: 'orderId', example: 'ord_123' })
-  @ApiParam({ name: 'userId', example: 'acc123' })
+  @ApiParam({ name: 'accountId', example: 'acc123', description: 'Girasol account ID' })
   @ApiQuery({
     name: 'idType',
     required: false,
@@ -306,10 +306,10 @@ export class WalletServiceController {
   async resendConfirmationCode(
     @CompanyId() companyId: string,
     @Param('orderId') orderId: string,
-    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
     @Query('idType') idType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<void> {
-    return this.orderService.resendConfirmationCode(orderId, userId, companyId, idType);
+    return this.orderService.resendConfirmationCode(orderId, accountId, companyId, idType);
   }
 
   @Get('metrics')
@@ -331,7 +331,7 @@ export class WalletServiceController {
     return this.metricsService.getMetrics();
   }
 
-  @Post('kyc/:customerId/upload')
+  @Post('kyc/:accountId/upload')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseInterceptors(
@@ -363,12 +363,12 @@ export class WalletServiceController {
   })
   @ApiOperation({
     summary: 'Upload KYC document',
-    description: 'Uploads a KYC document for a customer',
+    description: 'Uploads a KYC document for the customer mapped from the provided Girasol account ID',
   })
   @ApiParam({
-    name: 'customerId',
-    description: 'Customer ID',
-    example: 'customer123',
+    name: 'accountId',
+    description: 'Girasol account ID',
+    example: 'acc123',
   })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
@@ -380,7 +380,7 @@ export class WalletServiceController {
   })
   async uploadKyc(
     @CompanyId() companyId: string,
-    @Param('customerId') customerId: string,
+    @Param('accountId') accountId: string,
     @UploadedFile() file: any,
     @Body('file_type') fileType: string,
     @Body('document_type') documentType: LiriumFileType,
@@ -401,7 +401,7 @@ export class WalletServiceController {
     liriumFile.file_name = file.originalname;
     liriumFile.file_type = fileType;
     liriumFile.document_type = documentType;
-    liriumFile.user_id = customerId;
+    liriumFile.user_id = accountId;
     liriumFile.file = file;
 
     await this.liriumKycService.uploadKyc(liriumFile, companyId);

@@ -35,9 +35,9 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       );
     return response.data;
   }
-  async getWallets(accountId: string): Promise<AddWalletResponseDto> {
+  async getWallets(customerId: string): Promise<AddWalletResponseDto> {
     const response = await this.httpService.get<any>(
-      `${process.env.LIRIUM_API_URL}/customers/${accountId}/receiving_addresses`,
+      `${process.env.LIRIUM_API_URL}/customers/${customerId}/receiving_addresses`,
     );
     const responseDto = new AddWalletResponseDto();
     if (
@@ -109,11 +109,10 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
     responseDto.email = responseBody.contact.email;
     responseDto.accountId = responseBody.id ?? '';
-    const address = await this.getWallets(responseBody.id!);
-    await this.saveWallet(address, responseBody.id!, companyId);
-    address.userId = responseBody.id!;
-    console.log('address to return', address);
-    return address;
+    const wallets = await this.getWallets(responseBody.id!);
+    await this.saveWallet(wallets, responseBody.id!, companyId);
+    wallets.userId = responseBody.id!;
+    return wallets;
   }
 
   private async verifyCustomerDoesExist(
