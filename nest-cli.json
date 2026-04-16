@@ -27,15 +27,6 @@
       "compilerOptions": {
         "tsConfigPath": "apps/wallet-service/tsconfig.app.json"
       }
-    },
-    "deposit": {
-      "type": "application",
-      "root": "apps/deposit",
-      "entryFile": "main",
-      "sourceRoot": "apps/deposit/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/deposit/tsconfig.app.json"
-      }
     }
   }
 }

@@ -15,16 +15,12 @@
     "test:e2e": "jest --config ./jest-e2e.json",
     "start:api": "nest start api",
     "start:wallet-service": "nest start wallet-service",
-    "start:deposit": "nest start deposit",
     "start:dev:api": "nest start api --watch",
     "start:dev:wallet-service": "nest start wallet-service --watch",
-    "start:dev:deposit": "nest start deposit --watch",
     "start:debug:api": "cross-env NODE_OPTIONS=--inspect=9229 nest start api --watch --tsc",
     "start:debug:wallet-service": "cross-env NODE_OPTIONS=--inspect=9230 nest start wallet-service --watch --tsc",
-    "start:debug:deposit": "cross-env NODE_OPTIONS=--inspect=9231 nest start deposit --watch --tsc",
     "build:api": "nest build api",
-    "build:wallet-service": "nest build wallet-service",
-    "build:deposit": "nest build deposit"
+    "build:wallet-service": "nest build wallet-service"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.0",

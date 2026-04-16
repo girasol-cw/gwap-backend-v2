@@ -3,13 +3,17 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { LiriumKycService } from '../src/services/lirium-kyc.service';
 import { HttpWrapperService } from '../src/services/http-wrapper.service';
 import { DatabaseService } from '../src/services/database.service';
-import { LiriumFileDto, LiriumFileType } from '../src/dto/lirium-file.dto';
-import { File } from 'multer';
+import {
+  LiriumFileDto,
+  LiriumFileType,
+  LiriumUploadedFile,
+} from '../src/dto/lirium-file.dto';
 
 describe('LiriumKycService', () => {
   let service: LiriumKycService;
   let httpService: jest.Mocked<HttpWrapperService>;
   let databaseService: jest.Mocked<DatabaseService>;
+  const companyId = 'company-123';
 
   let mockPool: { query: jest.Mock };
   let mockHttpService: { post: jest.Mock };
@@ -17,7 +21,7 @@ describe('LiriumKycService', () => {
 
   const originalEnv = process.env;
 
-  const createMockFile = (overrides?: Partial<File>): File => {
+  const createMockFile = (overrides?: Partial<LiriumUploadedFile>): LiriumUploadedFile => {
     return {
       fieldname: 'file',
       originalname: 'test-document.pdf',
@@ -108,12 +112,12 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockPool.query).toHaveBeenCalledWith(
-        'SELECT user_id FROM users WHERE girasol_account_id = $1',
-        [mockFileDto.user_id],
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        [mockFileDto.user_id, companyId],
       );
       expect(mockHttpService.post).toHaveBeenCalledWith(
         `/customers/${mockUserId}/documents`,
@@ -138,8 +142,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow('File buffer is empty');
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow('File buffer is empty');
         // Verify that validation happens before database query - validation throws immediately
         expect(mockPool.query).not.toHaveBeenCalled();
         expect(mockHttpService.post).not.toHaveBeenCalled();
@@ -151,8 +155,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow('File buffer is empty');
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow('File buffer is empty');
         // Verify that validation happens before database query - validation throws immediately
         expect(mockPool.query).not.toHaveBeenCalled();
         expect(mockHttpService.post).not.toHaveBeenCalled();
@@ -164,8 +168,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow('File buffer is empty');
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow('File buffer is empty');
         // Verify that validation happens before database query - validation throws immediately
         expect(mockPool.query).not.toHaveBeenCalled();
         expect(mockHttpService.post).not.toHaveBeenCalled();
@@ -177,8 +181,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow('File buffer is empty');
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow('File buffer is empty');
         // Verify that validation happens before database query - validation throws immediately
         expect(mockPool.query).not.toHaveBeenCalled();
         expect(mockHttpService.post).not.toHaveBeenCalled();
@@ -190,8 +194,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
           'File type application/zip is not allowed',
         );
         // Verify that validation happens before database query - validation throws immediately
@@ -205,8 +209,8 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
           'File type text/plain is not allowed',
         );
         // Verify that validation happens before database query - validation throws immediately
@@ -233,7 +237,7 @@ describe('LiriumKycService', () => {
         mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
         // Act
-        await service.uploadKyc(mockFileDto);
+        await service.uploadKyc(mockFileDto, companyId);
 
         // Assert
         expect(mockHttpService.post).toHaveBeenCalled();
@@ -258,7 +262,7 @@ describe('LiriumKycService', () => {
         mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
         // Act
-        await service.uploadKyc(mockFileDto);
+        await service.uploadKyc(mockFileDto, companyId);
 
         // Assert
         expect(mockHttpService.post).toHaveBeenCalled();
@@ -283,7 +287,7 @@ describe('LiriumKycService', () => {
         mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
         // Act
-        await service.uploadKyc(mockFileDto);
+        await service.uploadKyc(mockFileDto, companyId);
 
         // Assert
         expect(mockHttpService.post).toHaveBeenCalled();
@@ -308,7 +312,7 @@ describe('LiriumKycService', () => {
         mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
         // Act
-        await service.uploadKyc(mockFileDto);
+        await service.uploadKyc(mockFileDto, companyId);
 
         // Assert
         expect(mockHttpService.post).toHaveBeenCalled();
@@ -320,7 +324,7 @@ describe('LiriumKycService', () => {
         const mockFileDto = createMockLiriumFileDto({ file: mockFile });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
         // Verify that database query was not called because validation failed first
         expect(mockPool.query).not.toHaveBeenCalled();
         expect(mockHttpService.post).not.toHaveBeenCalled();
@@ -337,7 +341,7 @@ describe('LiriumKycService', () => {
         });
 
         // Act & Assert
-        await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
+        await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
         // Verify that HTTP request was not made because validation failed
         expect(mockHttpService.post).not.toHaveBeenCalled();
       });
@@ -352,13 +356,13 @@ describe('LiriumKycService', () => {
       });
 
       // Act & Assert
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
         `User with account id ${mockFileDto.user_id} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
-        'SELECT user_id FROM users WHERE girasol_account_id = $1',
-        [mockFileDto.user_id],
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        [mockFileDto.user_id, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
@@ -376,13 +380,13 @@ describe('LiriumKycService', () => {
         });
 
       // Act & Assert
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
         `User with account id ${mockFileDto.user_id} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
-        'SELECT user_id FROM users WHERE girasol_account_id = $1',
-        [mockFileDto.user_id],
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        [mockFileDto.user_id, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
@@ -400,13 +404,13 @@ describe('LiriumKycService', () => {
         });
 
       // Act & Assert
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(BadRequestException);
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
         `User with account id ${mockFileDto.user_id} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
-        'SELECT user_id FROM users WHERE girasol_account_id = $1',
-        [mockFileDto.user_id],
+        'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+        [mockFileDto.user_id, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
@@ -427,7 +431,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockRejectedValueOnce(httpError);
 
       // Act & Assert
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow(HttpException);
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(HttpException);
       expect(mockHttpService.post).toHaveBeenCalledWith(
         `/customers/${mockUserId}/documents`,
         expect.any(Object),
@@ -453,7 +457,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalledWith(
@@ -491,7 +495,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -519,7 +523,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -547,7 +551,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -575,7 +579,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -601,7 +605,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -627,7 +631,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -653,7 +657,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalled();
@@ -680,7 +684,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       expect(mockHttpService.post).toHaveBeenCalledWith(
@@ -710,7 +714,7 @@ describe('LiriumKycService', () => {
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
 
       // Act
-      await service.uploadKyc(mockFileDto);
+      await service.uploadKyc(mockFileDto, companyId);
 
       // Assert
       const configCall = mockHttpService.post.mock.calls[0][2];
@@ -726,9 +730,8 @@ describe('LiriumKycService', () => {
       mockPool.query.mockRejectedValue(dbError);
 
       // Act & Assert
-      await expect(service.uploadKyc(mockFileDto)).rejects.toThrow('Database connection failed');
+      await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow('Database connection failed');
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
   });
 });
-

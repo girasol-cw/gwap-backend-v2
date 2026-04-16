@@ -2,13 +2,24 @@ import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 import { BadRequestException } from '@nestjs/common';
 
-import { File } from 'multer';
-
 export enum LiriumFileType {
     ID_BACK = 'id_back',
     ID_FRONT = 'id_front',
     PROOF_OF_ADDRESS = 'proof_of_address',
     SELFIE = 'selfie',
+}
+
+export interface LiriumUploadedFile {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    size: number;
+    buffer: Buffer;
+    destination?: string;
+    filename?: string;
+    path?: string;
+    stream?: NodeJS.ReadableStream;
 }
 
 export class LiriumFileDto {
@@ -17,7 +28,7 @@ export class LiriumFileDto {
     user_id: string;
 
     @IsNotEmpty({ message: 'File is required to upload KYC' })
-    file: File;
+    file: LiriumUploadedFile;
 
     @IsNotEmpty({ message: 'File type is required to upload KYC' })
     @IsString()
