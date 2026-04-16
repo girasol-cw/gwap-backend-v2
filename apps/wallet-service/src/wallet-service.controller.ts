@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpException,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -75,6 +76,14 @@ export class WalletServiceController {
     private readonly databaseService: DatabaseService,
   ) { }
 
+  private rethrowKnownHttpError(error: unknown): never {
+    if (error instanceof HttpException) {
+      throw error;
+    }
+
+    throw new BadRequestException(error);
+  }
+
   @Post('addWallet')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
   @ApiOperation({
@@ -115,7 +124,7 @@ export class WalletServiceController {
         data: result,
       };
     } catch (error) {
-      throw new BadRequestException(error);
+      this.rethrowKnownHttpError(error);
     }
   }
 
@@ -165,6 +174,10 @@ export class WalletServiceController {
         data: result,
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       if (error.message.includes('not found')) {
         throw new NotFoundException(`user with account id ${accountId} not found`);
       }
@@ -205,10 +218,7 @@ export class WalletServiceController {
 
       return this.liriumRequestService.getCustomerAccount(result.rows[0].user_id);
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new BadRequestException(error);
+      this.rethrowKnownHttpError(error);
     }
   }
 

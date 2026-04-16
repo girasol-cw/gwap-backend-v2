@@ -152,7 +152,7 @@ export class DepositForwarderService {
     return {
       'x-api-key': process.env.GIRASOL_API_KEY!,
       'x-secret-key': process.env.GIRASOL_SECRET_KEY!,
-      'x-company-id': process.env.GIRASOL_COMPANY_ID ?? companyId,
+      'x-company-id': companyId,
       'Content-Type': 'application/json',
     };
   }

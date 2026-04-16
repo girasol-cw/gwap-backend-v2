@@ -23,7 +23,6 @@ describe('DepositForwarderService', () => {
     process.env.SEND_URL = 'https://example.com/deposits';
     process.env.GIRASOL_API_KEY = 'api-key';
     process.env.GIRASOL_SECRET_KEY = 'secret-key';
-    process.env.GIRASOL_COMPANY_ID = 'company-header';
     (axios as any).isAxiosError = jest.fn();
 
     mockDatabaseService.pool.connect.mockResolvedValue(client);
@@ -87,7 +86,7 @@ describe('DepositForwarderService', () => {
         headers: expect.objectContaining({
           'x-api-key': 'api-key',
           'x-secret-key': 'secret-key',
-          'x-company-id': 'company-header',
+          'x-company-id': 'company-123',
         }),
       }),
     );

@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { WalletServiceController } from './wallet-service.controller';
 import { MetricsService } from './metrics.service';
 import { DatabaseService, LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
@@ -194,6 +199,16 @@ describe('WalletServiceController', () => {
         controller.addWallet(companyId, mockAddWalletRequest as any),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('should preserve HttpException when createCustomer fails with one', async () => {
+      (mockLiriumRequestService.createCustomer as jest.Mock).mockRejectedValue(
+        new ConflictException('wallet already exists'),
+      );
+
+      await expect(
+        controller.addWallet(companyId, mockAddWalletRequest as any),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('getWallet', () => {
@@ -284,6 +299,16 @@ describe('WalletServiceController', () => {
       await expect(
         controller.getWallet(companyId, userId),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should preserve HttpException for wallet lookup errors', async () => {
+      (mockGetWalletsService.getWallets as jest.Mock).mockRejectedValue(
+        new ConflictException('wallet service unavailable'),
+      );
+
+      await expect(
+        controller.getWallet(companyId, userId),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -694,6 +719,19 @@ describe('WalletServiceController', () => {
       await expect(
         controller.getCustomerAccount(companyId, 'missing-account'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should preserve HttpException from lirium account lookup', async () => {
+      (mockDatabaseService.pool.query as jest.Mock).mockResolvedValue({
+        rows: [{ user_id: 'lirium-user-123' }],
+      });
+      (mockLiriumRequestService.getCustomerAccount as jest.Mock).mockRejectedValue(
+        new ConflictException('customer lookup conflict'),
+      );
+
+      await expect(
+        controller.getCustomerAccount(companyId, 'account-123'),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });
