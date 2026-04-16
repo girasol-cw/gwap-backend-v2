@@ -45,7 +45,16 @@ CREATE TABLE deposits (
   user_id TEXT NOT NULL,
   erc20_amount TEXT NOT NULL,
   confirmed BOOLEAN DEFAULT FALSE, 
-  amount_usd TEXT NOT NULL,
+  amount_usd TEXT NULL,
+  currency TEXT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  event_id TEXT NULL,
+  origin_type TEXT NULL,
+  origin_value TEXT NULL,
+  origin_amount TEXT NULL,
+  payload JSONB NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (order_id),
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
@@ -92,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);
 CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits (user_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_company_id ON deposits (company_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_confirmed ON deposits (confirmed);
+CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits (status);
+CREATE INDEX IF NOT EXISTS idx_deposits_origin_value ON deposits (origin_value);
 
 CREATE INDEX IF NOT EXISTS idx_deposits_unconfirmed_partial
   ON deposits (order_id) WHERE confirmed = false;

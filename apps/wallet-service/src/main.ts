@@ -10,7 +10,9 @@ import { ValidationPipe } from '@nestjs/common';
 dotenv.config();
 
 async function bootstrap() {
-  const app = await NestFactory.create(WalletServiceModule);
+  const app = await NestFactory.create(WalletServiceModule, {
+    rawBody: true,
+  });
   const reflector = app.get(Reflector);
   app.useGlobalGuards(new ApiKeyGuard(reflector), new CompanyIdGuard(reflector));
   const config = new DocumentBuilder()
