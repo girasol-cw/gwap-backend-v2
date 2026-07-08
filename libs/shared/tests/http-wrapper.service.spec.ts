@@ -2,19 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
 import { of } from 'rxjs';
 import FormData = require('form-data');
+import { AxiosError } from 'axios';
 import { HttpWrapperService } from '../src/services/http-wrapper.service';
 import { TokenLiriumServiceAbstract } from '../src/services/token-lirium.service';
 import { DatabaseService } from '../src/services/database.service';
 
 describe('HttpWrapperService', () => {
   let service: HttpWrapperService;
-  let httpService: { post: jest.Mock };
+  let httpService: { post: jest.Mock; request: jest.Mock };
   let databaseService: { pool: { query: jest.Mock } };
   let tokenService: { getToken: jest.Mock };
 
   beforeEach(async () => {
     httpService = {
       post: jest.fn(),
+      request: jest.fn(),
     };
 
     databaseService = {
@@ -117,5 +119,41 @@ describe('HttpWrapperService', () => {
         status: 200,
       }),
     );
+  });
+
+  it('preserves non-Lirium HTTP status codes for generic request errors', async () => {
+    const axiosError = new AxiosError(
+      'Request failed with status code 405',
+      'ERR_BAD_REQUEST',
+      undefined,
+      undefined,
+      {
+        data: { message: 'Method Not Allowed' },
+        status: 405,
+        statusText: 'Method Not Allowed',
+        headers: {},
+        config: {
+          headers: {},
+        } as any,
+      } as any,
+    );
+
+    httpService.request.mockImplementation(() => {
+      throw axiosError;
+    });
+    databaseService.pool.query.mockResolvedValue(undefined);
+
+    try {
+      await service.put('/customers/remote-1', { example: true });
+      fail('Expected service.put to throw');
+    } catch (error) {
+      expect((error as { getStatus: () => number }).getStatus()).toBe(405);
+      expect(
+        (error as { getResponse: () => { error_code: string; error_msg: string } }).getResponse(),
+      ).toMatchObject({
+        error_code: 'internal_error',
+        error_msg: 'Request failed with status code 405',
+      });
+    }
   });
 });

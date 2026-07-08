@@ -271,6 +271,11 @@ export class HttpWrapperService {
         `Request ${config.method} ${config.url} failed:`,
         error.message,
       );
+      const handledError = this.handleLiriumError(
+        error,
+        config.method?.toUpperCase() || 'UNKNOWN',
+        config.url || '',
+      );
       
       // Guardar la petición con error
       await this.saveRequest({
@@ -279,17 +284,31 @@ export class HttpWrapperService {
         path: config.url || '',
         body: this.sanitizeRequestBody(config.data, requestHeaders),
         response_body: null,
-        error: JSON.stringify(error),
-        status_code: error.response?.status?.toString() || '500',
+        error: JSON.stringify(handledError),
+        status_code: handledError.status.toString(),
       });
 
-      throw this.createHttpException(error);
+      throw this.createHttpException(handledError);
     }
   }
 
 
-  private createHttpException(errorResponse: HttpWrapperErrorResponse): HttpException {
-    const { error, status } = errorResponse;
+  private createHttpException(errorResponse: Partial<HttpWrapperErrorResponse> | unknown): HttpException {
+    const status =
+      typeof errorResponse === 'object' &&
+      errorResponse !== null &&
+      'status' in errorResponse &&
+      typeof (errorResponse as { status?: unknown }).status === 'number'
+        ? (errorResponse as { status: number }).status
+        : 500;
+    const error =
+      typeof errorResponse === 'object' &&
+      errorResponse !== null &&
+      'error' in errorResponse &&
+      typeof (errorResponse as { error?: unknown }).error === 'object' &&
+      (errorResponse as { error?: unknown }).error !== null
+        ? (errorResponse as { error: Partial<LiriumErrorDto> }).error
+        : {};
     
     // Use LiriumApiException if we have error details
     if (error.error_code && error.error_msg) {
