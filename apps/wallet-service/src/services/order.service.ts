@@ -234,6 +234,11 @@ export class OrderService {
 
     if (payload && typeof payload === 'object' && depth < 3) {
       const candidate = payload as Record<string, unknown>;
+      const normalizedQuotes = this.extractQuotesRates(candidate);
+      if (normalizedQuotes.length > 0) {
+        return normalizedQuotes;
+      }
+
       const wrappedRates = [candidate.exchange_rates, candidate.rates, candidate.data];
 
       for (const value of wrappedRates) {
@@ -261,6 +266,75 @@ export class OrderService {
     throw new BadRequestException('Invalid exchange rates response');
   }
 
+  private extractQuotesRates(candidate: Record<string, unknown>): LiriumExchangeRateDto[] {
+    const { quotes } = candidate;
+
+    if (Array.isArray(quotes)) {
+      return quotes
+        .map((quote) => this.mapQuoteRate(quote))
+        .filter((quote): quote is LiriumExchangeRateDto => quote !== null);
+    }
+
+    if (quotes && typeof quotes === 'object') {
+      return Object.entries(quotes as Record<string, unknown>)
+        .map(([currency, quote]) => this.mapQuoteRate(quote, currency))
+        .filter((quote): quote is LiriumExchangeRateDto => quote !== null);
+    }
+
+    return [];
+  }
+
+  private mapQuoteRate(
+    quote: unknown,
+    fallbackCurrency?: string,
+  ): LiriumExchangeRateDto | null {
+    if (!quote || typeof quote !== 'object') {
+      return null;
+    }
+
+    const candidate = quote as Record<string, unknown>;
+    const currency = this.pickFirstString(
+      candidate.currency,
+      candidate.base_currency,
+      candidate.asset,
+      candidate.code,
+      fallbackCurrency,
+    );
+    const bid = this.pickFirstString(
+      candidate.bid,
+      candidate.rate,
+      candidate.price,
+      candidate.value,
+    );
+    const ask = this.pickFirstString(
+      candidate.ask,
+      candidate.rate,
+      candidate.price,
+      candidate.value,
+      bid,
+    );
+
+    if (!currency || !bid || !ask) {
+      return null;
+    }
+
+    return { currency, bid, ask };
+  }
+
+  private pickFirstString(...values: unknown[]): string | undefined {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+    }
+
+    return undefined;
+  }
+
   private summarizeExchangeRatesPayload(payload: unknown): Record<string, unknown> {
     if (Array.isArray(payload)) {
       return {
@@ -279,6 +353,15 @@ export class OrderService {
       return {
         type: 'object',
         keys: Object.keys(candidate).slice(0, 10),
+        quoteCurrencyType: this.describePayloadType(candidate.quote_currency),
+        quotesType: this.describePayloadType(candidate.quotes),
+        firstQuotesKeys:
+          Array.isArray(candidate.quotes) &&
+          candidate.quotes.length > 0 &&
+          candidate.quotes[0] &&
+          typeof candidate.quotes[0] === 'object'
+            ? Object.keys(candidate.quotes[0] as Record<string, unknown>).slice(0, 10)
+            : [],
         exchangeRatesType: this.describePayloadType(candidate.exchange_rates),
         ratesType: this.describePayloadType(candidate.rates),
         dataType: this.describePayloadType(candidate.data),

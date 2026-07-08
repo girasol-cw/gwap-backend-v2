@@ -364,6 +364,36 @@ describe('OrderService', () => {
       expect(result.to.amount).toBe('0.00200000');
     });
 
+    it('returns valid quote when exchange rates come as quote_currency + quotes array', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue({
+        quote_currency: 'USD',
+        quotes: [
+          { base_currency: 'BTC', bid: '0.00002', ask: '0.000021' },
+        ],
+      });
+
+      const result = await service.getSwapQuote({
+        asset: { currency: 'USDC', amount: '100' },
+        toCurrency: 'BTC',
+      });
+      expect(result.to.amount).toBe('0.00200000');
+    });
+
+    it('returns valid quote when exchange rates come as quote_currency + quotes object', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue({
+        quote_currency: 'USD',
+        quotes: {
+          BTC: { bid: '0.00002', ask: '0.000021' },
+        },
+      });
+
+      const result = await service.getSwapQuote({
+        asset: { currency: 'USDC', amount: '100' },
+        toCurrency: 'BTC',
+      });
+      expect(result.to.amount).toBe('0.00200000');
+    });
+
     it('throws when source and destination currency are equal', async () => {
       (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([]);
       await expect(
