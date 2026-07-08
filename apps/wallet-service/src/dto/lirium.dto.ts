@@ -26,7 +26,7 @@ export type LiriumOrderRequestDto = {
   customer_id: string;
   reference_id: string;
   operation: OperationType;
-  asset: AssetDto;
+  asset?: AssetDto;
   sell?: LiriumTradeRequestDto;
   buy?: LiriumTradeRequestDto;
   swap?: LiriumSwapRequestDto;

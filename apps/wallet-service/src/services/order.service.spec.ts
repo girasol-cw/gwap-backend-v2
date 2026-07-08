@@ -105,6 +105,48 @@ describe('OrderService', () => {
       );
     });
 
+    it('creates send order with lirium-shaped payload and skips account lookup when customer_id is provided', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      (mockLiriumService.createOrder as jest.Mock).mockResolvedValue(liriumResponse);
+
+      const result = await service.createOrder(
+        {
+          operation: OperationType.SEND,
+          reference_id: 'REF1',
+          customer_id: 'customer-123',
+          asset: { currency: 'USDC', amount: '0.0001' },
+          send: {
+            network: 'ethereum',
+            destination: {
+              type: 'crypto_currency_address',
+              value: '0x66f9a27957Af42465d3A3f1FC2AE5d446Bc75775',
+            },
+          },
+        },
+        companyId,
+      );
+
+      expect(result).toEqual(liriumResponse);
+      expect(mockLiriumService.createOrder).toHaveBeenCalledWith({
+        customer_id: 'customer-123',
+        reference_id: 'REF1',
+        operation: OperationType.SEND,
+        asset: { currency: 'USDC', amount: '0.0001' },
+        send: {
+          network: 'ethereum',
+          destination: {
+            type: 'crypto_currency_address',
+            value: '0x66f9a27957Af42465d3A3f1FC2AE5d446Bc75775',
+          },
+        },
+      });
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO orders'),
+        expect.any(Array),
+      );
+    });
+
     it('fails when customer account does not exist', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] });
 
@@ -113,6 +155,41 @@ describe('OrderService', () => {
       ).rejects.toThrow(
         new NotFoundException('Customer with girasol account id acc-123 not found'),
       );
+      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
+    });
+
+    it('fails when neither customer_id nor accountId is provided', async () => {
+      await expect(
+        service.createOrder(
+          {
+            operation: OperationType.SEND,
+            asset: { currency: 'USDC', amount: '1.00' },
+          },
+          companyId,
+        ),
+      ).rejects.toThrow(
+        new BadRequestException('Either customer_id/customerId or accountId/userId is required'),
+      );
+      expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
+    });
+
+    it('fails when send payload omits network', async () => {
+      await expect(
+        service.createOrder(
+          {
+            operation: OperationType.SEND,
+            customer_id: 'customer-123',
+            asset: { currency: 'USDC', amount: '1.00' },
+            send: {
+              destination: {
+                type: 'crypto_currency_address',
+                value: '0xabc123',
+              },
+            },
+          },
+          companyId,
+        ),
+      ).rejects.toThrow(new BadRequestException('Send network is required'));
       expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
     });
   });
@@ -265,6 +342,15 @@ describe('OrderService', () => {
           toCurrency: 'USDC',
         }),
       ).rejects.toThrow(new BadRequestException('Invalid currency pair'));
+    });
+
+    it('throws when source asset is missing', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([]);
+      await expect(
+        service.getSwapQuote({
+          toCurrency: 'BTC',
+        } as any),
+      ).rejects.toThrow(new BadRequestException('Source asset is required'));
     });
 
     it('throws when amount is invalid', async () => {

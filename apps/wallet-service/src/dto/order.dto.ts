@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsDefined,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 export enum OperationType {
   BUY = 'buy',
@@ -16,30 +24,41 @@ export enum OrderIdentifierType {
 }
 
 export class AssetDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Currency code',
     example: 'USDC',
   })
   currency: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Amount of the asset',
     example: '100.50',
   })
   amount?: string;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AssetDto)
   @ApiPropertyOptional({
     description: 'Settlement asset information',
     type: () => AssetDto,
   })
   settlement?: AssetDto;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Operation type',
     example: 'buy',
   })
   operation?: string;
 
+  @IsOptional()
+  @IsBoolean()
   @Transform(({ value }) => ({ requires_confirmation_code: value }), {
     toPlainOnly: true,
   })
@@ -47,38 +66,52 @@ export class AssetDto {
 }
 
 export class CommissionDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Commission type',
     example: 'percentage',
   })
-  type: string;
+  type?: string;
 
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Commission value',
     example: '0.5',
   })
-  value: string;
+  value?: string;
 }
 
 export class TradeOperationDto {
-  @ApiProperty({
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AssetDto)
+  @ApiPropertyOptional({
     description: 'Settlement asset',
     type: () => AssetDto,
   })
-  settlement: AssetDto;
+  settlement?: AssetDto;
 
-  @ApiProperty({
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CommissionDto)
+  @ApiPropertyOptional({
     description: 'Commission information',
     type: () => CommissionDto,
   })
-  commission: CommissionDto;
+  commission?: CommissionDto;
 
+  @IsOptional()
+  @IsBoolean()
   @ApiPropertyOptional({
     description: 'Whether confirmation code is required',
     example: false,
   })
   requiresConfirmationCode?: boolean;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Expiration date in ISO format',
     example: '2023-10-14T12:00:00Z',
@@ -87,24 +120,32 @@ export class TradeOperationDto {
 }
 
 export class SwapOperationDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Destination currency for the swap',
     example: 'BTC',
   })
-  currency: string;
+  currency?: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Amount to swap (optional depending on flow)',
     example: '100.00',
   })
   amount?: string;
 
+  @IsOptional()
+  @IsBoolean()
   @ApiPropertyOptional({
     description: 'Whether confirmation code is required',
     example: false,
   })
   requiresConfirmationCode?: boolean;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Expiration date in ISO format',
     example: '2023-10-14T12:00:00Z',
@@ -113,18 +154,24 @@ export class SwapOperationDto {
 }
 
 export class DestinationDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Destination type',
     example: 'crypto_currency_address',
   })
-  type: string;
+  type?: string;
 
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Destination address or customer id',
     example: '0xaddress',
   })
-  value: string;
+  value?: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Amount to arrive at destination',
     example: '50.25',
@@ -133,24 +180,33 @@ export class DestinationDto {
 }
 
 export class SendOperationDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Blockchain network',
     example: 'polygon',
   })
-  network: string;
+  network?: string;
 
-  @ApiProperty({
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DestinationDto)
+  @ApiPropertyOptional({
     description: 'Destination details',
     type: () => DestinationDto,
   })
-  destination: DestinationDto;
+  destination?: DestinationDto;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Expiration date in ISO format',
     example: '2023-10-14T12:00:00Z',
   })
   expiresAt?: string;
 
+  @IsOptional()
+  @IsBoolean()
   @ApiPropertyOptional({
     description: 'Whether confirmation code is required',
     example: false,
@@ -159,60 +215,133 @@ export class SendOperationDto {
 }
 
 export class OrderRequestDto {
-  @ApiProperty({
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
     description: 'Legacy field for the Girasol account ID used to resolve the Lirium customer',
     example: 'user123',
   })
-  userId: string;
+  userId?: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Preferred field for the Girasol account ID used to resolve the Lirium customer',
     example: 'acc123',
   })
   accountId?: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Lirium Order ID',
     example: 'ord_123456',
   })
   orderId?: string;
 
-  @ApiProperty({
-    description: 'Type of operation to perform',
+  @IsOptional()
+  @IsEnum(OperationType)
+  @ApiPropertyOptional({
+    description: 'Legacy internal field for the operation type. Prefer operation.',
     enum: OperationType,
     example: OperationType.BUY,
   })
-  operationType: OperationType;
+  operationType?: OperationType;
 
-  @ApiProperty({
+  @IsOptional()
+  @IsEnum(OperationType)
+  @ApiPropertyOptional({
+    description: 'Lirium operation type',
+    enum: OperationType,
+    example: OperationType.SEND,
+  })
+  operation?: OperationType;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AssetDto)
+  @ApiPropertyOptional({
     description: 'Source asset (asset to spend)',
     type: () => AssetDto,
   })
-  asset: AssetDto;
+  asset?: AssetDto;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TradeOperationDto)
   @ApiPropertyOptional({
-    description: 'Trade operation details (for buy/sell)',
+    description: 'Legacy trade operation details (for buy/sell)',
     type: () => TradeOperationDto,
   })
   tradeOperation?: TradeOperationDto;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TradeOperationDto)
+  @ApiPropertyOptional({
+    description: 'Lirium buy payload',
+    type: () => TradeOperationDto,
+  })
+  buy?: TradeOperationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TradeOperationDto)
+  @ApiPropertyOptional({
+    description: 'Lirium sell payload',
+    type: () => TradeOperationDto,
+  })
+  sell?: TradeOperationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SwapOperationDto)
   @ApiPropertyOptional({
     description: 'Swap operation details',
     type: () => SwapOperationDto,
   })
   swap?: SwapOperationDto;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SendOperationDto)
   @ApiPropertyOptional({
     description: 'Send operation details',
     type: () => SendOperationDto,
   })
   send?: SendOperationDto;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
-    description: 'Reference ID for the order',
+    description: 'Legacy reference ID for the order',
     example: 'Buy20231014120000',
   })
   referenceId?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description: 'Lirium reference_id for the order',
+    example: 'REF1',
+  })
+  reference_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description: 'Preferred Lirium customer id. If provided, accountId lookup is skipped.',
+    example: '15ae3bc6efdd47699b26dc9c20812ab7',
+  })
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    description: 'Lirium customer_id. If provided, accountId lookup is skipped.',
+    example: '15ae3bc6efdd47699b26dc9c20812ab7',
+  })
+  customer_id?: string;
 }
 
 export class OrderConfirmRequestDto {
@@ -242,12 +371,17 @@ export class OrderConfirmRequestDto {
 }
 
 export class SwapQuoteRequestDto {
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => AssetDto)
   @ApiProperty({
     description: 'Source asset (asset to swap from)',
     type: () => AssetDto,
   })
   asset: AssetDto;
 
+  @IsDefined()
+  @IsString()
   @ApiProperty({
     description: 'Destination currency',
     example: 'BTC',

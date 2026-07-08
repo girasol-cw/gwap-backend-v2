@@ -229,6 +229,28 @@ export class WalletServiceController {
   })
   @ApiBody({
     type: OrderRequestDto,
+    description: 'Accepts the legacy GWAP payload and a near-pass-through Lirium payload.',
+    examples: {
+      sendPassthrough: {
+        summary: 'Minimal send payload',
+        value: {
+          reference_id: 'REF1',
+          operation: 'send',
+          customer_id: '15ae3bc6efdd47699b26dc9c20812ab7',
+          asset: {
+            currency: 'USDC',
+            amount: '0.0001',
+          },
+          send: {
+            network: 'ethereum',
+            destination: {
+              type: 'crypto_currency_address',
+              value: '0x66f9a27957Af42465d3A3f1FC2AE5d446Bc75775',
+            },
+          },
+        },
+      },
+    },
   })
   async createOrder(
     @CompanyId() companyId: string,

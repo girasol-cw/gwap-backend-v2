@@ -75,10 +75,8 @@ export class OrderService {
 
   async createOrder(order: OrderRequestDto, companyId: string): Promise<LiriumOrderResponseDto> {
     this.logger.log(`Creating order ${JSON.stringify(order)}`);
-    const accountId = this.resolveAccountId(order);
-    const customerId = await this.getCustomerId(accountId, companyId);
-    order.userId = customerId;
-    const liriumOrder = this.buildLiriumOrder(order);
+    const customerId = await this.resolveCustomerId(order, companyId);
+    const liriumOrder = this.buildLiriumOrder(order, customerId);
     const orderResponse: LiriumOrderResponseDto = await this.liriumService.createOrder(liriumOrder);
     await this.saveOrder(liriumOrder, orderResponse, companyId);
     return orderResponse;
@@ -90,6 +88,9 @@ export class OrderService {
     identifierType: OrderIdentifierType = OrderIdentifierType.LIRIUM_ID,
   ): Promise<LiriumOrderResponseDto> {
     const accountId = this.resolveAccountId(order);
+    if (!accountId) {
+      throw new BadRequestException('accountId or userId is required');
+    }
     const customerId = await this.getCustomerId(accountId, companyId);
     if (!order.orderId) {
       throw new BadRequestException('Lirium Order ID is required');
@@ -173,9 +174,17 @@ export class OrderService {
     const rates: LiriumExchangeRateDto[] =
       await this.liriumService.getExchangeRates();
 
-    const fromCurrency: string = body.asset.currency;
+    if (!body.asset) {
+      throw new BadRequestException('Source asset is required');
+    }
+
+    const fromCurrency = body.asset.currency;
     const toCurrency: string = body.toCurrency;
     const amount: number = Number(body.asset.amount);
+
+    if (!fromCurrency) {
+      throw new BadRequestException('Source currency is required');
+    }
 
     if (fromCurrency === toCurrency) {
       throw new BadRequestException('Invalid currency pair');
@@ -326,7 +335,7 @@ export class OrderService {
         order.customer_id,
         order.reference_id,
         order.operation,
-        order.asset,
+        order.asset ?? null,
         orderResponse.state,
         new Date().toISOString(),
         JSON.stringify(order),
@@ -342,44 +351,31 @@ export class OrderService {
     );
   }
 
-  private buildLiriumOrder(order: OrderRequestDto): LiriumOrderRequestDto {
+  private buildLiriumOrder(
+    order: OrderRequestDto,
+    customerId: string,
+  ): LiriumOrderRequestDto {
+    const operation = this.resolveOperationType(order);
     const referenceId =
+      order.reference_id ??
       order.referenceId ??
-      this.OPERATION_PREFIX[order.operationType] +
+      this.OPERATION_PREFIX[operation] +
       new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
 
     const liriumOrder: LiriumOrderRequestDto = {
-      customer_id: order.userId,
+      customer_id: customerId,
       reference_id: referenceId,
-      operation: order.operationType,
-      asset: order.asset,
+      operation,
+      ...(order.asset ? { asset: order.asset } : {}),
     };
 
-    switch (order.operationType) {
+    switch (operation) {
       case OperationType.SELL:
-        if (!order.tradeOperation) {
-          throw new BadRequestException('Trade operation is required');
-        }
-
-        liriumOrder.sell = {
-          settlement: order.tradeOperation.settlement,
-          commission: order.tradeOperation.commission,
-          expires_at: order.tradeOperation.expiresAt,
-          requires_confirmation_code: order.tradeOperation.requiresConfirmationCode,
-        };
+        this.assignTradeOperation(liriumOrder, 'sell', order.sell ?? order.tradeOperation);
         break;
 
       case OperationType.BUY:
-        if (!order.tradeOperation) {
-          throw new BadRequestException('Trade operation is required');
-        }
-
-        liriumOrder.buy = {
-          settlement: order.tradeOperation.settlement,
-          commission: order.tradeOperation.commission,
-          expires_at: order.tradeOperation.expiresAt,
-          requires_confirmation_code: order.tradeOperation.requiresConfirmationCode,
-        };
+        this.assignTradeOperation(liriumOrder, 'buy', order.buy ?? order.tradeOperation);
         break;
 
       case OperationType.SWAP:
@@ -389,7 +385,9 @@ export class OrderService {
 
         liriumOrder.swap = {
           currency: order.swap.currency,
-          amount: order.swap.amount ?? order.asset.amount,
+          amount: order.swap.amount ?? order.asset?.amount,
+          expires_at: order.swap.expiresAt,
+          requires_confirmation_code: order.swap.requiresConfirmationCode,
         };
         break;
 
@@ -398,15 +396,15 @@ export class OrderService {
           throw new BadRequestException('Send network is required');
         }
 
-        if (!order.send?.destination?.type) {
+        if (!order.send.destination?.type) {
           throw new BadRequestException('Send destination type is required');
         }
 
-        if (!order.send?.destination?.value) {
+        if (!order.send.destination.value) {
           throw new BadRequestException('Send destination value is required');
         }
 
-        if (!order.asset?.amount && !order.send?.destination?.amount) {
+        if (!order.asset?.amount && !order.send.destination.amount) {
           throw new BadRequestException(
             'Either asset.amount or send.destination.amount is required',
           );
@@ -414,21 +412,44 @@ export class OrderService {
 
         liriumOrder.send = {
           network: order.send.network,
-          destination: {
-            type: order.send.destination.type,
-            value: order.send.destination.value,
-            amount: order.send.destination.amount,
-          },
+          destination: order.send.destination,
         };
         break;
 
       default:
         this.logger.warn(
-          `Operation type ${order.operationType} does not have specific mapping`,
+          `Operation type ${operation} does not have specific mapping`,
         );
     }
 
     return liriumOrder;
+  }
+
+  private assignTradeOperation(
+    liriumOrder: LiriumOrderRequestDto,
+    side: 'buy' | 'sell',
+    trade?: OrderRequestDto['buy'],
+  ): void {
+    if (!trade) {
+      throw new BadRequestException('Trade operation is required');
+    }
+
+    liriumOrder[side] = {
+      settlement: trade.settlement,
+      commission: trade.commission,
+      expires_at: trade.expiresAt,
+      requires_confirmation_code: trade.requiresConfirmationCode,
+    };
+  }
+
+  private resolveOperationType(order: OrderRequestDto): OperationType {
+    const operation = order.operation ?? order.operationType;
+
+    if (!operation) {
+      throw new BadRequestException('operation is required');
+    }
+
+    return operation;
   }
 
   private async getCustomerId(
@@ -451,7 +472,27 @@ export class OrderService {
 
   private resolveAccountId(
     order: Pick<OrderRequestDto, 'accountId' | 'userId'> | Pick<OrderConfirmRequestDto, 'accountId' | 'userId'>,
-  ): string {
+  ): string | undefined {
     return order.accountId ?? order.userId;
+  }
+
+  private extractCustomerId(order: Pick<OrderRequestDto, 'customerId' | 'customer_id'>): string | undefined {
+    return order.customer_id ?? order.customerId;
+  }
+
+  private async resolveCustomerId(order: OrderRequestDto, companyId: string): Promise<string> {
+    const directCustomerId = this.extractCustomerId(order);
+    if (directCustomerId) {
+      return directCustomerId;
+    }
+
+    const accountId = this.resolveAccountId(order);
+    if (!accountId) {
+      throw new BadRequestException(
+        'Either customer_id/customerId or accountId/userId is required',
+      );
+    }
+
+    return this.getCustomerId(accountId, companyId);
   }
 }
