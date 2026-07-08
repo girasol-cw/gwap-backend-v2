@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { LiriumRequestService } from '../src/services/lirium-request.service';
 import { HttpWrapperService } from '../src/services/http-wrapper.service';
@@ -67,11 +68,15 @@ describe('LiriumRequestService', () => {
 
   describe('getWallets', () => {
     it('returns empty address array when receiving_addresses is missing', async () => {
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation();
       httpService.get.mockResolvedValue({ data: {} });
 
       await expect(service.getWallets('customer-123')).resolves.toEqual({
         address: [],
       });
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No receiving addresses returned for customer customer-123'),
+      );
     });
 
     it('maps receiving_addresses array when present', async () => {
@@ -406,7 +411,10 @@ describe('LiriumRequestService', () => {
     });
 
     it('relinks from request logs when remote customer exists but local row is missing', async () => {
-      httpService.put.mockResolvedValue({ data: { id: 'remote-1', type: 'individual' } });
+      const loggerLogSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+      httpService.put.mockRejectedValue(new HttpException('Method not allowed', 405));
+      httpService.patch.mockResolvedValue({ data: { id: 'remote-1', type: 'individual' } });
       httpService.get.mockResolvedValue({ data: {} });
       databaseService.pool.query.mockImplementation(async (sql: string) => {
         if (sql.includes('FROM users WHERE girasol_account_id')) {
@@ -436,6 +444,16 @@ describe('LiriumRequestService', () => {
       expect(httpService.put).toHaveBeenCalledWith(
         'https://api.lirium.com/v1/customers/remote-1',
         expect.any(Object),
+      );
+      expect(httpService.patch).toHaveBeenCalledWith(
+        'https://api.lirium.com/v1/customers/remote-1',
+        expect.any(Object),
+      );
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        'PUT /customers/remote-1 returned 405, retrying with PATCH',
+      );
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Lirium customer update via PATCH succeeded:'),
       );
     });
 

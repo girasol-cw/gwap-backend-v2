@@ -77,6 +77,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     responseDto.address = this.normalizeReceivingAddresses(response.data);
 
     if (responseDto.address.length === 0) {
+      this.logger.warn(
+        `No receiving addresses returned for customer ${customerId}: ${JSON.stringify(
+          this.summarizeReceivingAddressesPayload(response.data),
+        )}`,
+      );
       return responseDto;
     }
     return responseDto;
@@ -266,6 +271,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         `${process.env.LIRIUM_API_URL}/customers/${customerId}`,
         requestBody,
       );
+      this.logger.log(
+        `Lirium customer update via PUT succeeded: ${JSON.stringify(
+          this.summarizeCustomerPayload(response.data),
+        )}`,
+      );
       return this.attachSerializedCustomer(response.data as LiriumRequestDto, customerId);
     } catch (error) {
       if (error instanceof HttpException && [404, 405, 501].includes(error.getStatus())) {
@@ -275,6 +285,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         const response = await this.httpService.patch<any>(
           `${process.env.LIRIUM_API_URL}/customers/${customerId}`,
           requestBody,
+        );
+        this.logger.log(
+          `Lirium customer update via PATCH succeeded: ${JSON.stringify(
+            this.summarizeCustomerPayload(response.data),
+          )}`,
         );
         return this.attachSerializedCustomer(response.data as LiriumRequestDto, customerId);
       }
@@ -565,7 +580,22 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         type: 'object',
         keys: Object.keys(candidate).slice(0, 10),
         receivingAddressesType: this.describePayloadType(candidate.receiving_addresses),
+        receivingAddressesCount: Array.isArray(candidate.receiving_addresses)
+          ? candidate.receiving_addresses.length
+          : undefined,
         dataType: this.describePayloadType(candidate.data),
+        nestedReceivingAddressesType:
+          candidate.data && typeof candidate.data === 'object'
+            ? this.describePayloadType(
+                (candidate.data as Record<string, unknown>).receiving_addresses,
+              )
+            : undefined,
+        nestedReceivingAddressesCount:
+          candidate.data &&
+          typeof candidate.data === 'object' &&
+          Array.isArray((candidate.data as Record<string, unknown>).receiving_addresses)
+            ? ((candidate.data as Record<string, unknown>).receiving_addresses as unknown[]).length
+            : undefined,
       };
     }
 
@@ -595,6 +625,35 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     }
 
     return typeof value;
+  }
+
+  private summarizeCustomerPayload(payload: unknown): Record<string, unknown> {
+    if (!payload || typeof payload !== 'object') {
+      return {
+        type: this.describePayloadType(payload),
+      };
+    }
+
+    const candidate = payload as Record<string, unknown>;
+    const profile =
+      candidate.profile && typeof candidate.profile === 'object'
+        ? (candidate.profile as Record<string, unknown>)
+        : null;
+    const contact =
+      candidate.contact && typeof candidate.contact === 'object'
+        ? (candidate.contact as Record<string, unknown>)
+        : null;
+
+    return {
+      type: 'object',
+      keys: Object.keys(candidate).slice(0, 10),
+      id: typeof candidate.id === 'string' ? candidate.id : undefined,
+      state: typeof candidate.state === 'string' ? candidate.state : undefined,
+      reference_id:
+        typeof candidate.reference_id === 'string' ? candidate.reference_id : undefined,
+      profileKeys: profile ? Object.keys(profile).slice(0, 10) : undefined,
+      contactKeys: contact ? Object.keys(contact).slice(0, 10) : undefined,
+    };
   }
 
   private getNormalizedCustomerFields(request: AddWalletRequestDto): {
