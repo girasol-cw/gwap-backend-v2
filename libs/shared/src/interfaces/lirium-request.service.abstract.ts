@@ -21,6 +21,9 @@ export abstract class LiriumRequestServiceAbstract {
   abstract getCustomerAccount(
     accountId: string,
   ): Promise<LiriumCustomerAccountResponseDto>;
+  abstract getCustomerDetails(
+    customerId: string,
+  ): Promise<Record<string, unknown>>;
   abstract getWallets(accountId: string): Promise<WalletAddressesResponseDto>;
   abstract createCustomer(
     customer: AddWalletRequestDto,

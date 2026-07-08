@@ -71,6 +71,14 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       );
     return response.data;
   }
+
+  async getCustomerDetails(customerId: string): Promise<Record<string, unknown>> {
+    const response = await this.httpService.get<Record<string, unknown>>(
+      `${process.env.LIRIUM_API_URL}/customers/${customerId}`,
+    );
+    return response.data;
+  }
+
   async getWallets(customerId: string): Promise<WalletAddressesResponseDto> {
     const response = await this.httpService.get<any>(
       `${process.env.LIRIUM_API_URL}/customers/${customerId}/receiving_addresses`,

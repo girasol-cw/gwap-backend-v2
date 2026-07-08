@@ -43,6 +43,7 @@ import {
   ErrorResponseDto,
   WalletResponseEnvelopeDto,
 } from './dto/add-wallet.dto';
+import { UnifiedCustomerResponseDto } from './dto/customer.dto';
 import { LiriumCustomerAccountResponseDto, LiriumOrderResponseDto } from './dto/lirium.dto';
 import {
   OrderIdentifierType,
@@ -59,6 +60,7 @@ import {
 } from './dto/withdraw.dto';
 import { globalRegistry, MetricsService } from './metrics.service';
 import { GetWalletsService } from './services/get-wallets.service';
+import { GetCustomerService } from './services/get-customer.service';
 import { OrderService } from './services/order.service';
 import { WithdrawService } from './services/withdraw.service';
 import { DepositForwarderService } from './services/deposit-forwarder.service';
@@ -73,6 +75,7 @@ export class WalletServiceController {
     private readonly liriumRequestService: LiriumRequestServiceAbstract,
     private readonly metricsService: MetricsService,
     private readonly getWalletsService: GetWalletsService,
+    private readonly getCustomerService: GetCustomerService,
     private readonly liriumKycService: LiriumKycServiceAbstract,
     private readonly withdrawService: WithdrawService,
     private readonly orderService: OrderService,
@@ -230,6 +233,49 @@ export class WalletServiceController {
       }
 
       return this.liriumRequestService.getCustomerAccount(result.rows[0].user_id);
+    } catch (error) {
+      this.rethrowKnownHttpError(error);
+    }
+  }
+
+  @Get('customer/:accountId')
+  @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
+  @ApiOperation({
+    summary: 'Get unified customer information',
+    description: 'Retrieves wallets, accounts, and customer details for a specific Girasol account ID',
+  })
+  @ApiParam({
+    name: 'accountId',
+    description: 'Girasol account ID / Lirium reference_id',
+    example: 'acc123',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Unified customer information retrieved successfully',
+    type: UnifiedCustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.MULTI_STATUS,
+    description: 'Unified customer information retrieved with partial upstream failures',
+    type: UnifiedCustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer mapping not found for the provided accountId',
+    type: ErrorResponseDto,
+  })
+  async getCustomer(
+    @CompanyId() companyId: string,
+    @Param('accountId') accountId: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<UnifiedCustomerResponseDto> {
+    try {
+      const result = await this.getCustomerService.getCustomer(accountId, companyId);
+      if (result.partialSuccess) {
+        response.status(HttpStatus.MULTI_STATUS);
+      }
+
+      return result;
     } catch (error) {
       this.rethrowKnownHttpError(error);
     }

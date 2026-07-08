@@ -9,6 +9,7 @@ import { WalletServiceController } from './wallet-service.controller';
 import { MetricsService } from './metrics.service';
 import { DatabaseService, LiriumRequestServiceAbstract, LiriumKycServiceAbstract } from 'libs/shared';
 import { GetWalletsService } from './services/get-wallets.service';
+import { GetCustomerService } from './services/get-customer.service';
 import { WithdrawService } from './services/withdraw.service';
 import { OrderService } from './services/order.service';
 import { DepositForwarderService } from './services/deposit-forwarder.service';
@@ -28,6 +29,10 @@ describe('WalletServiceController', () => {
 
   const mockGetWalletsService: jest.Mocked<Partial<GetWalletsService>> = {
     getWallets: jest.fn(),
+  };
+
+  const mockGetCustomerService: jest.Mocked<Partial<GetCustomerService>> = {
+    getCustomer: jest.fn(),
   };
 
   const mockLiriumKycService: jest.Mocked<Partial<LiriumKycServiceAbstract>> = {
@@ -75,6 +80,10 @@ describe('WalletServiceController', () => {
         {
           provide: GetWalletsService,
           useValue: mockGetWalletsService,
+        },
+        {
+          provide: GetCustomerService,
+          useValue: mockGetCustomerService,
         },
         {
           provide: LiriumKycServiceAbstract,
@@ -768,6 +777,84 @@ describe('WalletServiceController', () => {
       await expect(
         controller.getCustomerAccount(companyId, 'account-123'),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('getCustomer', () => {
+    const mockResponse = {
+      status: jest.fn().mockReturnThis(),
+    };
+
+    it('should return unified customer data with 200 when all upstream calls succeed', async () => {
+      const serviceResponse = {
+        id: 'lirium-user-123',
+        accountId: 'account-123',
+        email: 'test@example.com',
+        wallets: {
+          success: true,
+          data: { address: [] },
+          error: null,
+        },
+        accounts: {
+          success: true,
+          data: { accounts: [] },
+          error: null,
+        },
+        details: {
+          success: true,
+          data: { id: 'lirium-user-123', state: 'active' },
+          error: null,
+        },
+        partialSuccess: false,
+        failedSources: [],
+      };
+      (mockGetCustomerService.getCustomer as jest.Mock).mockResolvedValue(serviceResponse);
+
+      await expect(
+        controller.getCustomer(companyId, 'account-123', mockResponse as any),
+      ).resolves.toEqual(serviceResponse);
+      expect(mockResponse.status).not.toHaveBeenCalled();
+    });
+
+    it('should return unified customer data with 207 when any upstream call fails', async () => {
+      const serviceResponse = {
+        id: 'lirium-user-123',
+        accountId: 'account-123',
+        email: 'test@example.com',
+        wallets: {
+          success: true,
+          data: { address: [] },
+          error: null,
+        },
+        accounts: {
+          success: false,
+          data: null,
+          error: { source: 'accounts', message: 'upstream failed', statusCode: 500 },
+        },
+        details: {
+          success: true,
+          data: { id: 'lirium-user-123', state: 'active' },
+          error: null,
+        },
+        partialSuccess: true,
+        failedSources: ['accounts'],
+      };
+      (mockGetCustomerService.getCustomer as jest.Mock).mockResolvedValue(serviceResponse);
+
+      await expect(
+        controller.getCustomer(companyId, 'account-123', mockResponse as any),
+      ).resolves.toEqual(serviceResponse);
+      expect(mockResponse.status).toHaveBeenCalledWith(207);
+    });
+
+    it('should preserve not found errors from the unified customer service', async () => {
+      (mockGetCustomerService.getCustomer as jest.Mock).mockRejectedValue(
+        new NotFoundException('Customer with account id missing-account not found'),
+      );
+
+      await expect(
+        controller.getCustomer(companyId, 'missing-account', mockResponse as any),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

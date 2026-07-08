@@ -134,6 +134,27 @@ describe('LiriumRequestService', () => {
     });
   });
 
+  describe('getCustomerDetails', () => {
+    it('returns the raw customer details payload', async () => {
+      httpService.get.mockResolvedValue({
+        data: {
+          id: 'customer-123',
+          state: 'active',
+          reference_id: 'acc-123',
+        },
+      });
+
+      await expect(service.getCustomerDetails('customer-123')).resolves.toEqual({
+        id: 'customer-123',
+        state: 'active',
+        reference_id: 'acc-123',
+      });
+      expect(httpService.get).toHaveBeenCalledWith(
+        'https://api.lirium.com/v1/customers/customer-123',
+      );
+    });
+  });
+
   describe('createCustomer reentrant flow', () => {
     it('creates a remote customer and returns partial success when no wallets are available yet', async () => {
       httpService.post.mockResolvedValue({ data: { id: 'remote-1', type: 'individual' } });
