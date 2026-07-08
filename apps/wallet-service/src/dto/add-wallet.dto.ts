@@ -1,6 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
+export type WalletProvisionStatus =
+  | 'pending_wallet_sync'
+  | 'wallet_sync_failed'
+  | 'ready';
+
 export class walletDto {
   @ApiProperty({ 
     description: 'Wallet address',
@@ -39,7 +44,7 @@ export class AddWalletRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({ 
-    description: 'Girasol user reference used as the customer reference_id in Lirium',
+    description: 'Girasol user identifier kept for backward compatibility; the idempotent Lirium reference is derived from accountId',
     example: 'user123'
   })
   userId: string;
@@ -55,7 +60,7 @@ export class AddWalletRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({ 
-    description: 'Girasol account ID used as the external key for this customer',
+    description: 'Girasol account ID used as the idempotent external key and Lirium reference_id for this customer',
     example: 'acc123'
   })
   accountId: string;
@@ -113,8 +118,8 @@ export class AddWalletRequestDto {
   @IsString()
   @IsNotEmpty()
   @ApiProperty({ 
-    description: 'Type of national ID',
-    example: 'passport'
+    description: 'Client-facing national ID type label; the current Lirium mapping normalizes this value to national_id',
+    example: 'national_id'
   })
   nationalIdType: string;
 
@@ -251,6 +256,36 @@ export class AddWalletResponseDto {
   })
   errorChainIds?: string[];
 
+  @ApiProperty({
+    description: 'Provisioning status for the customer and wallet synchronization flow',
+    enum: ['pending_wallet_sync', 'wallet_sync_failed', 'ready'],
+    required: false,
+    example: 'ready',
+  })
+  provisionStatus?: WalletProvisionStatus;
+
+}
+
+export class WalletResponseEnvelopeDto {
+  @ApiProperty({
+    description: 'High-level outcome for the wallet operation',
+    example: 'Success',
+  })
+  message: string;
+
+  @ApiProperty({
+    description: 'Provisioning status for create-wallet flows',
+    enum: ['pending_wallet_sync', 'wallet_sync_failed', 'ready'],
+    required: false,
+    example: 'ready',
+  })
+  provisionStatus?: WalletProvisionStatus;
+
+  @ApiProperty({
+    description: 'Wallet-related response payload',
+    type: AddWalletResponseDto,
+  })
+  data: AddWalletResponseDto;
 }
 
 export class ErrorResponseDto {

@@ -103,6 +103,10 @@ describe('WalletServiceController', () => {
   });
 
   describe('addWallet', () => {
+    const mockResponse = {
+      status: jest.fn().mockReturnThis(),
+    };
+
     const mockAddWalletRequest = {
       accountId: 'girasol-account-1',
       userId: 'user-1',
@@ -131,6 +135,7 @@ describe('WalletServiceController', () => {
       const serviceResponse = {
         accountId: 'lirium-user-1',
         email: 'test@example.com',
+        provisionStatus: 'ready',
         address: [
           {
             address: '0xabc123',
@@ -143,12 +148,18 @@ describe('WalletServiceController', () => {
 
       (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
 
-      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+      const result = await controller.addWallet(
+        companyId,
+        mockAddWalletRequest as any,
+        mockResponse as any,
+      );
 
       expect(result).toEqual({
         message: 'Success',
+        provisionStatus: 'ready',
         data: serviceResponse,
       });
+      expect(mockResponse.status).not.toHaveBeenCalled();
 
       expect(mockLiriumRequestService.createCustomer).toHaveBeenCalledWith(
         mockAddWalletRequest,
@@ -160,34 +171,48 @@ describe('WalletServiceController', () => {
       const serviceResponse = {
         accountId: 'lirium-user-1',
         email: 'test@example.com',
+        provisionStatus: 'pending_wallet_sync',
         address: [],
       };
 
       (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
 
-      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+      const result = await controller.addWallet(
+        companyId,
+        mockAddWalletRequest as any,
+        mockResponse as any,
+      );
 
       expect(result).toEqual({
-        message: 'Warning',
+        message: 'Partial Success',
+        provisionStatus: 'pending_wallet_sync',
         data: serviceResponse,
       });
+      expect(mockResponse.status).toHaveBeenCalledWith(207);
     });
 
     it('should return warning when created wallet address is null', async () => {
       const serviceResponse = {
         accountId: 'lirium-user-1',
         email: 'test@example.com',
+        provisionStatus: 'wallet_sync_failed',
         address: null,
       };
 
       (mockLiriumRequestService.createCustomer as jest.Mock).mockResolvedValue(serviceResponse);
 
-      const result = await controller.addWallet(companyId, mockAddWalletRequest as any);
+      const result = await controller.addWallet(
+        companyId,
+        mockAddWalletRequest as any,
+        mockResponse as any,
+      );
 
       expect(result).toEqual({
-        message: 'Warning',
+        message: 'Partial Success',
+        provisionStatus: 'wallet_sync_failed',
         data: serviceResponse,
       });
+      expect(mockResponse.status).toHaveBeenCalledWith(207);
     });
 
     it('should throw BadRequestException when createCustomer fails', async () => {
@@ -196,7 +221,7 @@ describe('WalletServiceController', () => {
       );
 
       await expect(
-        controller.addWallet(companyId, mockAddWalletRequest as any),
+        controller.addWallet(companyId, mockAddWalletRequest as any, mockResponse as any),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -206,7 +231,7 @@ describe('WalletServiceController', () => {
       );
 
       await expect(
-        controller.addWallet(companyId, mockAddWalletRequest as any),
+        controller.addWallet(companyId, mockAddWalletRequest as any, mockResponse as any),
       ).rejects.toThrow(ConflictException);
     });
   });

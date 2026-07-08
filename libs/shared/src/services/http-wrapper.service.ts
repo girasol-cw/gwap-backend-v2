@@ -134,6 +134,32 @@ export class HttpWrapperService {
     }
   }
 
+  async put<T = any>(
+    url: string,
+    data?: any,
+    config?: HttpWrapperConfig,
+  ): Promise<HttpWrapperResponse<T>> {
+    return this.request<T>({
+      method: 'PUT',
+      url,
+      data,
+      ...(config || {}),
+    });
+  }
+
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    config?: HttpWrapperConfig,
+  ): Promise<HttpWrapperResponse<T>> {
+    return this.request<T>({
+      method: 'PATCH',
+      url,
+      data,
+      ...(config || {}),
+    });
+  }
+
 
 
   private async buildRequestConfig(

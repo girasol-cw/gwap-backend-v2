@@ -11,10 +11,12 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import {
   ApiBody,
   ApiConsumes,
@@ -38,6 +40,7 @@ import {
   AddWalletRequestDto,
   AddWalletResponseDto,
   ErrorResponseDto,
+  WalletResponseEnvelopeDto,
 } from './dto/add-wallet.dto';
 import { LiriumCustomerAccountResponseDto, LiriumOrderResponseDto } from './dto/lirium.dto';
 import {
@@ -97,12 +100,17 @@ export class WalletServiceController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Wallet created successfully!',
-    type: AddWalletResponseDto,
+    type: WalletResponseEnvelopeDto,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid request data or wallet creation failed',
     type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.MULTI_STATUS,
+    description: 'Customer persisted but wallet provisioning is still pending or failed partially',
+    type: WalletResponseEnvelopeDto,
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
@@ -112,15 +120,19 @@ export class WalletServiceController {
   async addWallet(
     @CompanyId() companyId: string,
     @Body() body: AddWalletRequestDto,
-  ): Promise<{ message: string; data: AddWalletResponseDto }> {
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WalletResponseEnvelopeDto> {
     try {
       const result = await this.liriumRequestService.createCustomer(body, companyId);
+      const isReady = result.provisionStatus === 'ready';
+
+      if (!isReady) {
+        response.status(HttpStatus.MULTI_STATUS);
+      }
 
       return {
-        message:
-          result.address == null || result.address.length === 0
-            ? 'Warning'
-            : 'Success',
+        message: isReady ? 'Success' : 'Partial Success',
+        provisionStatus: result.provisionStatus,
         data: result,
       };
     } catch (error) {
@@ -143,7 +155,7 @@ export class WalletServiceController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Wallet information retrieved successfully',
-    type: AddWalletResponseDto,
+    type: WalletResponseEnvelopeDto,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -163,7 +175,7 @@ export class WalletServiceController {
   async getWallet(
     @CompanyId() companyId: string,
     @Param('accountId') accountId: string,
-  ): Promise<{ message: string; data: AddWalletResponseDto }> {
+  ): Promise<WalletResponseEnvelopeDto> {
     try {
       const result = await this.getWalletsService.getWallets(accountId, companyId);
       return {
