@@ -261,7 +261,7 @@ export class HttpWrapperService {
         path: config.url || '',
         body: this.sanitizeRequestBody(config.data, headers),
         response_body: formattedResponse.data,
-        error: "",
+        error: "{}",
         status_code: formattedResponse.status.toString(),
       });
 
@@ -472,7 +472,7 @@ export class HttpWrapperService {
           request.path,
           request.body ? JSON.stringify(request.body) : null,
           request.response_body ? JSON.stringify(request.response_body) : null,
-          request.error,
+          this.normalizeStoredJson(request.error),
           request.status_code,
         ],
       );
@@ -480,5 +480,22 @@ export class HttpWrapperService {
       this.logger.error('Error saving request to database:', error.message);
       // No lanzamos el error para no interrumpir el flujo principal
     }
+  }
+
+  private normalizeStoredJson(value: unknown): string | null {
+    if (value == null) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        JSON.parse(value);
+        return value;
+      } catch {
+        return JSON.stringify({ message: value });
+      }
+    }
+
+    return JSON.stringify(value);
   }
 }

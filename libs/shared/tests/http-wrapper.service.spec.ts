@@ -100,6 +100,30 @@ describe('HttpWrapperService', () => {
     expect(JSON.stringify(savedBody)).not.toContain('very sensitive file content');
   });
 
+  it('stores successful generic requests with a valid JSON error payload', async () => {
+    httpService.request.mockReturnValue(
+      of({
+        data: { updated: true },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+      }),
+    );
+    databaseService.pool.query.mockResolvedValue(undefined);
+
+    await expect(
+      service.put('/customers/remote-1', { example: true }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        data: { updated: true },
+        status: 200,
+      }),
+    );
+
+    expect(databaseService.pool.query).toHaveBeenCalledTimes(1);
+    expect(databaseService.pool.query.mock.calls[0][1][5]).toBe('{}');
+  });
+
   it('does not fail the request when request logging cannot be persisted', async () => {
     httpService.post.mockReturnValue(
       of({
