@@ -32,6 +32,7 @@ import {
   DatabaseService,
   LiriumFileDto,
   LiriumFileType,
+  LiriumKycUploadResponse,
   LiriumKycServiceAbstract,
   SkipCompanyId,
 } from 'libs/shared';
@@ -377,7 +378,7 @@ export class WalletServiceController {
 
   @Post('kyc/:accountId/upload')
   @ApiHeader({ name: 'x-company-id', description: 'Tenant/company identifier (multi-tenant)', required: true })
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: MAX_SIZE_BYTES },
@@ -415,8 +416,8 @@ export class WalletServiceController {
     example: 'acc123',
   })
   @ApiResponse({
-    status: HttpStatus.NO_CONTENT,
-    description: 'KYC document uploaded successfully',
+    status: HttpStatus.OK,
+    description: 'KYC document uploaded successfully with the upstream Lirium response payload',
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -428,7 +429,7 @@ export class WalletServiceController {
     @UploadedFile() file: any,
     @Body('file_type') fileType: string,
     @Body('document_type') documentType: LiriumFileType,
-  ): Promise<void> {
+  ): Promise<LiriumKycUploadResponse> {
     if (!file) {
       throw new BadRequestException('file is required');
     }
@@ -448,7 +449,7 @@ export class WalletServiceController {
     liriumFile.accountId = accountId;
     liriumFile.file = file;
 
-    await this.liriumKycService.uploadKyc(liriumFile, companyId);
+    return this.liriumKycService.uploadKyc(liriumFile, companyId);
   }
 
   @Post('deposits/:orderId/forward')

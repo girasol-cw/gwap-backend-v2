@@ -372,19 +372,24 @@ describe('WalletServiceController', () => {
   });
 
   describe('uploadKyc', () => {
-    it('should map uploaded file into lirium dto and call uploadKyc', async () => {
+    it('should map uploaded file into lirium dto, call uploadKyc, and return the upstream response', async () => {
       const file = {
         originalname: 'document.pdf',
         buffer: Buffer.from('test'),
       };
+      const liriumResponse = {
+        status: 200,
+        data: { id: 'doc-123', state: 'received' },
+      };
+      (mockLiriumKycService.uploadKyc as jest.Mock).mockResolvedValue(liriumResponse);
 
-      await controller.uploadKyc(
+      await expect(controller.uploadKyc(
         companyId,
         'customer-123',
         file,
         'application/pdf',
         'national_id_front' as any,
-      );
+      )).resolves.toEqual(liriumResponse);
 
       expect(mockLiriumKycService.uploadKyc).toHaveBeenCalledWith({
         file_name: 'document.pdf',

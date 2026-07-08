@@ -110,10 +110,12 @@ describe('LiriumKycService', () => {
       });
 
       mockHttpService.post.mockResolvedValueOnce(mockHttpResponse);
-      const loggerSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
 
       // Act
-      await service.uploadKyc(mockFileDto, companyId);
+      await expect(service.uploadKyc(mockFileDto, companyId)).resolves.toEqual({
+        status: 200,
+        data: { success: true },
+      });
 
       // Assert
       expect(mockPool.query).toHaveBeenCalledWith(
@@ -129,9 +131,6 @@ describe('LiriumKycService', () => {
             'content-type': expect.stringContaining('multipart/form-data'),
           }),
         }),
-      );
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Lirium KYC upload response for account account-123'),
       );
     });
 
