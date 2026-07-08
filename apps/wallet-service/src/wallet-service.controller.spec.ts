@@ -109,7 +109,6 @@ describe('WalletServiceController', () => {
 
     const mockAddWalletRequest = {
       accountId: 'girasol-account-1',
-      userId: 'user-1',
       userType: 'individual',
       label: 'Test User',
       firstName: 'Sebastian',
@@ -117,6 +116,7 @@ describe('WalletServiceController', () => {
       lastName: 'Ortiz',
       birthDate: '1995-01-01',
       nationalIdCountryIso2: 'CO',
+      nationalIdType: 'national_id',
       nationalId: '123456789',
       citizenshipIso2: 'CO',
       addressLine1: 'Street 123',
@@ -133,7 +133,8 @@ describe('WalletServiceController', () => {
 
     it('should create wallet successfully with success message', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: 'girasol-account-1',
         email: 'test@example.com',
         provisionStatus: 'ready',
         address: [
@@ -169,7 +170,8 @@ describe('WalletServiceController', () => {
 
     it('should return warning when created wallet has no addresses', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: 'girasol-account-1',
         email: 'test@example.com',
         provisionStatus: 'pending_wallet_sync',
         address: [],
@@ -193,7 +195,8 @@ describe('WalletServiceController', () => {
 
     it('should return warning when created wallet address is null', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: 'girasol-account-1',
         email: 'test@example.com',
         provisionStatus: 'wallet_sync_failed',
         address: null,
@@ -241,7 +244,8 @@ describe('WalletServiceController', () => {
 
     it('should return wallet successfully with success message', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: userId,
         email: 'test@example.com',
         address: [
           {
@@ -270,7 +274,8 @@ describe('WalletServiceController', () => {
 
     it('should return warning when wallet has no addresses', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: userId,
         email: 'test@example.com',
         address: [],
       };
@@ -287,7 +292,8 @@ describe('WalletServiceController', () => {
 
     it('should return warning when wallet address is null', async () => {
       const serviceResponse = {
-        accountId: 'lirium-user-1',
+        id: 'lirium-user-1',
+        accountId: userId,
         email: 'test@example.com',
         address: null,
       };
@@ -384,7 +390,7 @@ describe('WalletServiceController', () => {
         file_name: 'document.pdf',
         file_type: 'application/pdf',
         document_type: 'national_id_front',
-        user_id: 'customer-123',
+        accountId: 'customer-123',
         file,
       }, companyId);
     });
@@ -634,7 +640,7 @@ describe('WalletServiceController', () => {
       const response = { id: 'order-1' } as any;
       (mockOrderService.createOrder as jest.Mock).mockResolvedValue(response);
 
-      const body = { userId: 'acc-1', operationType: 'swap', asset: { currency: 'USDC', amount: '10' } } as any;
+      const body = { accountId: 'acc-1', operationType: 'swap', asset: { currency: 'USDC', amount: '10' } } as any;
       await expect(controller.createOrder(companyId, body)).resolves.toEqual(response);
       expect(mockOrderService.createOrder).toHaveBeenCalledWith(body, companyId);
     });
@@ -652,7 +658,7 @@ describe('WalletServiceController', () => {
       const response = { id: 'order-1', state: 'processing' } as any;
       (mockOrderService.confirmOrder as jest.Mock).mockResolvedValue(response);
 
-      const body = { userId: 'acc-1', orderId: 'ord_123', confirmationCode: '123456' } as any;
+      const body = { accountId: 'acc-1', orderId: 'ord_123', confirmationCode: '123456' } as any;
       await expect(controller.confirmOrder(companyId, body)).resolves.toEqual(response);
       expect(mockOrderService.confirmOrder).toHaveBeenCalledWith(
         body,
@@ -665,7 +671,7 @@ describe('WalletServiceController', () => {
       const response = { id: 'order-1', state: 'processing' } as any;
       (mockOrderService.confirmOrder as jest.Mock).mockResolvedValue(response);
 
-      const body = { userId: 'acc-1', orderId: 'Send-001', confirmationCode: '123456' } as any;
+      const body = { accountId: 'acc-1', orderId: 'Send-001', confirmationCode: '123456' } as any;
       await expect(
         controller.confirmOrder(companyId, body, OrderIdentifierType.REFERENCE_ID),
       ).resolves.toEqual(response);

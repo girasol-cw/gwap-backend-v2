@@ -10,7 +10,6 @@ describe('LiriumRequestService', () => {
   let databaseService: { pool: { query: jest.Mock } };
   const request = {
     accountId: 'girasol-account-1',
-    userId: 'user-1',
     userType: 'individual',
     label: 'Test User',
     firstName: 'Sebastian',
@@ -18,6 +17,7 @@ describe('LiriumRequestService', () => {
     lastName: 'Ortiz',
     birthDate: '1995-01-01',
     nationalIdCountryIso2: 'CO',
+    nationalIdType: 'national_id',
     nationalId: '123456789',
     citizenshipIso2: 'CO',
     addressLine1: 'Street 123',
@@ -160,8 +160,8 @@ describe('LiriumRequestService', () => {
       const result = await service.createCustomer(request as any, companyId);
 
       expect(result).toEqual({
-        accountId: 'remote-1',
-        userId: 'remote-1',
+        id: 'remote-1',
+        accountId: 'girasol-account-1',
         email: 'test@example.com',
         address: [],
         provisionStatus: 'pending_wallet_sync',

@@ -12,12 +12,21 @@ export class GetWalletsService {
 
   async getWallets(accountId: string, companyId: string): Promise<AddWalletResponseDto> {
     const customer = await this.getCustomer(accountId, companyId);
-    return this.liriumRequestService.getWallets(customer);
+    const wallets = await this.liriumRequestService.getWallets(customer.user_id);
+    const response = new AddWalletResponseDto();
+    response.id = customer.user_id;
+    response.accountId = accountId;
+    response.email = customer.email;
+    response.address = wallets.address ?? [];
+    return response;
   }
 
-  private async getCustomer(accountId: string, companyId: string): Promise<string> {
-    const result = await this.databaseService.pool.query<string[]>(
-      'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
+  private async getCustomer(
+    accountId: string,
+    companyId: string,
+  ): Promise<{ user_id: string; email: string }> {
+    const result = await this.databaseService.pool.query<{ user_id: string; email: string }>(
+      'SELECT user_id, email FROM users WHERE girasol_account_id = $1 AND company_id = $2',
       [accountId, companyId],
     );
 
@@ -25,6 +34,6 @@ export class GetWalletsService {
       throw new Error(`user with account id ${accountId} not found`);
     }
 
-    return result.rows[0].user_id;
+    return result.rows[0];
   }
 }

@@ -10,6 +10,8 @@ import {
 import {
   AddWalletRequestDto,
   AddWalletResponseDto,
+  normalizeNationalIdType,
+  WalletAddressesResponseDto,
   WalletProvisionStatus,
   walletDto,
 } from 'apps/wallet-service/src/dto/add-wallet.dto';
@@ -69,11 +71,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       );
     return response.data;
   }
-  async getWallets(customerId: string): Promise<AddWalletResponseDto> {
+  async getWallets(customerId: string): Promise<WalletAddressesResponseDto> {
     const response = await this.httpService.get<any>(
       `${process.env.LIRIUM_API_URL}/customers/${customerId}/receiving_addresses`,
     );
-    const responseDto = new AddWalletResponseDto();
+    const responseDto = new WalletAddressesResponseDto();
     responseDto.address = this.normalizeReceivingAddresses(response.data);
 
     if (responseDto.address.length === 0) {
@@ -92,7 +94,8 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     companyId: string,
   ): Promise<AddWalletResponseDto> {
     const requestBody = this.buildCustomerRequest(customer);
-    const existingCustomer = await this.findLocalCustomer(customer.accountId, companyId);
+    const { accountId } = this.getNormalizedCustomerFields(customer);
+    const existingCustomer = await this.findLocalCustomer(accountId, companyId);
 
     if (existingCustomer) {
       return this.resumeExistingCustomer(existingCustomer, customer, requestBody, companyId);
@@ -128,7 +131,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       [
         customer.id ?? '',
         companyId,
-        request.accountId,
+        normalizedRequest.accountId,
         status,
         normalizedRequest.label,
         request.firstName,
@@ -136,7 +139,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         request.lastName,
         request.birthDate,
         request.nationalIdCountryIso2,
-        'national_id',
+        normalizedRequest.nationalIdType,
         request.nationalId,
         request.citizenshipIso2,
         request.addressLine1,
@@ -155,7 +158,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   }
 
   private async saveWallet(
-    wallets: AddWalletResponseDto,
+    wallets: WalletAddressesResponseDto,
     customerId: string,
     companyId: string,
   ): Promise<void> {
@@ -228,7 +231,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         last_name: customer.lastName,
         date_of_birth: customer.birthDate,
         national_id_country: customer.nationalIdCountryIso2,
-        national_id_type: 'national_id',
+        national_id_type: normalizedRequest.nationalIdType,
         national_id: customer.nationalId,
         citizenship: customer.citizenshipIso2,
         address_line1: customer.addressLine1,
@@ -250,7 +253,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   }
 
   private buildCustomerReferenceId(customer: AddWalletRequestDto): string {
-    return customer.accountId;
+    return this.getNormalizedCustomerFields(customer).accountId;
   }
 
   private async createRemoteCustomer(requestBody: LiriumRequestDto): Promise<LiriumRequestDto> {
@@ -316,7 +319,11 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     companyId: string,
     customerId: string,
   ): Promise<AddWalletResponseDto> {
-    const responseDto = this.buildAddWalletResponse(customerId, request.email);
+    const responseDto = this.buildAddWalletResponse(
+      customerId,
+      this.getNormalizedCustomerFields(request).accountId,
+      request.email,
+    );
 
     try {
       const wallets = await this.getWallets(customerId);
@@ -343,11 +350,12 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
 
   private buildAddWalletResponse(
     customerId: string,
+    accountId: string,
     email: string,
   ): AddWalletResponseDto {
     const responseDto = new AddWalletResponseDto();
-    responseDto.accountId = customerId;
-    responseDto.userId = customerId;
+    responseDto.id = customerId;
+    responseDto.accountId = accountId;
     responseDto.email = email;
     responseDto.address = [];
     return responseDto;
@@ -405,7 +413,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       existingCustomer.last_name !== request.lastName ||
       existingCustomer.date_of_birth !== request.birthDate ||
       existingCustomer.national_id_country !== request.nationalIdCountryIso2 ||
-      existingCustomer.national_id_type !== 'national_id' ||
+      existingCustomer.national_id_type !== normalizedRequest.nationalIdType ||
       existingCustomer.national_id !== request.nationalId ||
       existingCustomer.citizenship !== request.citizenshipIso2 ||
       existingCustomer.address_line1 !== request.addressLine1 ||
@@ -463,7 +471,7 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
         request.lastName,
         request.birthDate,
         request.nationalIdCountryIso2,
-        'national_id',
+        normalizedRequest.nationalIdType,
         request.nationalId,
         request.citizenshipIso2,
         request.addressLine1,
@@ -657,6 +665,8 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
   }
 
   private getNormalizedCustomerFields(request: AddWalletRequestDto): {
+    accountId: string;
+    nationalIdType: string;
     label: string | null;
     middleName: string | null;
     addressLine2: string | null;
@@ -664,7 +674,21 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
     taxCountryIso2: string | null;
     name: string | null;
   } {
+    const accountId = request.accountId?.trim();
+    if (!accountId) {
+      throw new BadRequestException('accountId is required');
+    }
+
+    const nationalIdType = normalizeNationalIdType(request.nationalIdType);
+    if (!nationalIdType || !['passport', 'driver_license', 'national_id'].includes(nationalIdType)) {
+      throw new BadRequestException(
+        'nationalIdType must be one of: passport, driver_license, national_id',
+      );
+    }
+
     return {
+      accountId,
+      nationalIdType,
       label: this.normalizeOptionalString(request.label),
       middleName: this.normalizeOptionalString(request.middleName),
       addressLine2: this.normalizeOptionalString(request.addressLine2),

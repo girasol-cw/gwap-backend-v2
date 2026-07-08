@@ -8,6 +8,7 @@ import {
 import {
   AddWalletRequestDto,
   AddWalletResponseDto,
+  WalletAddressesResponseDto,
 } from 'apps/wallet-service/src/dto/add-wallet.dto';
 
 export abstract class LiriumRequestServiceAbstract {
@@ -20,7 +21,7 @@ export abstract class LiriumRequestServiceAbstract {
   abstract getCustomerAccount(
     accountId: string,
   ): Promise<LiriumCustomerAccountResponseDto>;
-  abstract getWallets(accountId: string): Promise<AddWalletResponseDto>;
+  abstract getWallets(accountId: string): Promise<WalletAddressesResponseDto>;
   abstract createCustomer(
     customer: AddWalletRequestDto,
     companyId: string,

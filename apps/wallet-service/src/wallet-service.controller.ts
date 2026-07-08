@@ -445,7 +445,7 @@ export class WalletServiceController {
     liriumFile.file_name = file.originalname;
     liriumFile.file_type = fileType;
     liriumFile.document_type = documentType;
-    liriumFile.user_id = accountId;
+    liriumFile.accountId = accountId;
     liriumFile.file = file;
 
     await this.liriumKycService.uploadKyc(liriumFile, companyId);

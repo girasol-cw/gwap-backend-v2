@@ -15,9 +15,9 @@ export class LiriumKycService extends LiriumKycServiceAbstract {
 
     public async uploadKyc(file: LiriumFileDto, companyId: string): Promise<void> {
         file.validateFileProperties();
-        const userId = await this.getUserByAccountId(file.user_id, companyId);
+        const userId = await this.getUserByAccountId(file.accountId, companyId);
         if (!userId) {
-            throw new BadRequestException(`User with account id ${file.user_id} not found`);
+            throw new BadRequestException(`User with account id ${file.accountId} not found`);
         }
 
         const formData = new FormData();

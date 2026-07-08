@@ -4,6 +4,7 @@ import {
   IsDefined,
   IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   ValidateNested,
@@ -218,15 +219,7 @@ export class OrderRequestDto {
   @IsOptional()
   @IsString()
   @ApiPropertyOptional({
-    description: 'Legacy field for the Girasol account ID used to resolve the Lirium customer',
-    example: 'user123',
-  })
-  userId?: string;
-
-  @IsOptional()
-  @IsString()
-  @ApiPropertyOptional({
-    description: 'Preferred field for the Girasol account ID used to resolve the Lirium customer',
+    description: 'Girasol account ID used to resolve the Lirium customer',
     example: 'acc123',
   })
   accountId?: string;
@@ -345,24 +338,24 @@ export class OrderRequestDto {
 }
 
 export class OrderConfirmRequestDto {
+  @IsString()
+  @IsNotEmpty()
   @ApiProperty({
-    description: 'Legacy field for the Girasol account ID used to resolve the Lirium customer',
-    example: 'user123',
-  })
-  userId: string;
-
-  @ApiPropertyOptional({
-    description: 'Preferred field for the Girasol account ID used to resolve the Lirium customer',
+    description: 'Girasol account ID used to resolve the Lirium customer',
     example: 'acc123',
   })
-  accountId?: string;
+  accountId: string;
 
   @ApiPropertyOptional({
     description: 'Lirium Order ID',
     example: 'ord_123456',
   })
-  orderId?: string;
+  @IsString()
+  @IsNotEmpty()
+  orderId: string;
 
+  @IsOptional()
+  @IsString()
   @ApiPropertyOptional({
     description: 'Confirmation code',
     example: '123456',

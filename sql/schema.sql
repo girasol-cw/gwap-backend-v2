@@ -99,6 +99,8 @@ CREATE TABLE orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_girasol_account_id
+  ON users (company_id, girasol_account_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets (user_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_company_id ON wallets (company_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_network ON wallets (network);

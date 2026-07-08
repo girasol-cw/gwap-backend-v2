@@ -52,7 +52,7 @@ describe('OrderService', () => {
   describe('createOrder', () => {
     const companyId = 'company-123';
     const request: OrderRequestDto = {
-      userId: 'acc-123',
+      accountId: 'acc-123',
       operationType: OperationType.SEND,
       asset: { currency: 'USDC', amount: '10.00' },
       send: {
@@ -168,7 +168,7 @@ describe('OrderService', () => {
           companyId,
         ),
       ).rejects.toThrow(
-        new BadRequestException('Either customer_id/customerId or accountId/userId is required'),
+        new BadRequestException('Either customer_id/customerId or accountId is required'),
       );
       expect(mockLiriumService.createOrder).not.toHaveBeenCalled();
     });
@@ -197,7 +197,7 @@ describe('OrderService', () => {
   describe('confirmOrder with id type', () => {
     const companyId = 'company-123';
     const confirmRequest: OrderConfirmRequestDto = {
-      userId: 'acc-123',
+      accountId: 'acc-123',
       orderId: 'ord-send-123',
       confirmationCode: '123456',
     };

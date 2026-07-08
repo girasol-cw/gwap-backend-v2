@@ -42,7 +42,7 @@ describe('LiriumKycService', () => {
     dto.file_name = overrides?.file_name ?? 'test-document.pdf';
     dto.file_type = overrides?.file_type ?? 'id_front';
     dto.document_type = overrides?.document_type ?? LiriumFileType.ID_FRONT;
-    dto.user_id = overrides?.user_id ?? 'account-123';
+    dto.accountId = overrides?.accountId ?? 'account-123';
     dto.file = overrides?.file ?? createMockFile();
     return dto;
   };
@@ -117,7 +117,7 @@ describe('LiriumKycService', () => {
       // Assert
       expect(mockPool.query).toHaveBeenCalledWith(
         'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
-        [mockFileDto.user_id, companyId],
+        [mockFileDto.accountId, companyId],
       );
       expect(mockHttpService.post).toHaveBeenCalledWith(
         `/customers/${mockUserId}/documents`,
@@ -131,7 +131,7 @@ describe('LiriumKycService', () => {
       );
     });
 
-    // Note: Validation of user_id, file, file_type, document_type, and file_name
+    // Note: Validation of accountId, file, file_type, document_type, and file_name
     // is now handled by the validation pipe in the controller, not in the service.
     // These tests are removed as they are integration concerns, not unit test concerns.
 
@@ -358,16 +358,16 @@ describe('LiriumKycService', () => {
       // Act & Assert
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
-        `User with account id ${mockFileDto.user_id} not found`,
+        `User with account id ${mockFileDto.accountId} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
         'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
-        [mockFileDto.user_id, companyId],
+        [mockFileDto.accountId, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
 
-    it('should throw BadRequestException when user_id from database is null', async () => {
+    it('should throw BadRequestException when accountId from database is null', async () => {
       // Arrange
       const mockFileDto = createMockLiriumFileDto();
 
@@ -382,16 +382,16 @@ describe('LiriumKycService', () => {
       // Act & Assert
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
-        `User with account id ${mockFileDto.user_id} not found`,
+        `User with account id ${mockFileDto.accountId} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
         'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
-        [mockFileDto.user_id, companyId],
+        [mockFileDto.accountId, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });
 
-    it('should throw BadRequestException when user_id from database is undefined', async () => {
+    it('should throw BadRequestException when accountId from database is undefined', async () => {
       // Arrange
       const mockFileDto = createMockLiriumFileDto();
 
@@ -406,11 +406,11 @@ describe('LiriumKycService', () => {
       // Act & Assert
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(BadRequestException);
       await expect(service.uploadKyc(mockFileDto, companyId)).rejects.toThrow(
-        `User with account id ${mockFileDto.user_id} not found`,
+        `User with account id ${mockFileDto.accountId} not found`,
       );
       expect(mockPool.query).toHaveBeenCalledWith(
         'SELECT user_id FROM users WHERE girasol_account_id = $1 AND company_id = $2',
-        [mockFileDto.user_id, companyId],
+        [mockFileDto.accountId, companyId],
       );
       expect(mockHttpService.post).not.toHaveBeenCalled();
     });

@@ -89,7 +89,7 @@ export class OrderService {
   ): Promise<LiriumOrderResponseDto> {
     const accountId = this.resolveAccountId(order);
     if (!accountId) {
-      throw new BadRequestException('accountId or userId is required');
+      throw new BadRequestException('accountId is required');
     }
     const customerId = await this.getCustomerId(accountId, companyId);
     if (!order.orderId) {
@@ -634,9 +634,9 @@ export class OrderService {
   }
 
   private resolveAccountId(
-    order: Pick<OrderRequestDto, 'accountId' | 'userId'> | Pick<OrderConfirmRequestDto, 'accountId' | 'userId'>,
+    order: Pick<OrderRequestDto, 'accountId'> | Pick<OrderConfirmRequestDto, 'accountId'>,
   ): string | undefined {
-    return order.accountId ?? order.userId;
+    return order.accountId;
   }
 
   private extractCustomerId(order: Pick<OrderRequestDto, 'customerId' | 'customer_id'>): string | undefined {
@@ -652,7 +652,7 @@ export class OrderService {
     const accountId = this.resolveAccountId(order);
     if (!accountId) {
       throw new BadRequestException(
-        'Either customer_id/customerId or accountId/userId is required',
+        'Either customer_id/customerId or accountId is required',
       );
     }
 

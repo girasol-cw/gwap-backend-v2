@@ -1,5 +1,47 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+
+export const LIRIUM_NATIONAL_ID_TYPES = [
+  'passport',
+  'driver_license',
+  'national_id',
+] as const;
+
+export type LiriumNationalIdType = (typeof LIRIUM_NATIONAL_ID_TYPES)[number];
+
+const NATIONAL_ID_TYPE_ALIASES: Record<string, LiriumNationalIdType> = {
+  passport: 'passport',
+  driver_license: 'driver_license',
+  driverlicense: 'driver_license',
+  licencia: 'driver_license',
+  licencia_de_conducir: 'driver_license',
+  license: 'driver_license',
+  national_id: 'national_id',
+  nationalid: 'national_id',
+  cedula: 'national_id',
+  cedula_de_ciudadania: 'national_id',
+  dni: 'national_id',
+};
+
+function normalizeLookupKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+export function normalizeNationalIdType(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const key = normalizeLookupKey(value);
+  return NATIONAL_ID_TYPE_ALIASES[key] ?? key;
+}
 
 export type WalletProvisionStatus =
   | 'pending_wallet_sync'
@@ -33,21 +75,13 @@ export class walletDto {
 }
 
 export class AddWalletRequestDto {
-  @IsEnum(['individual', 'business'])
+  @IsIn(['individual', 'business'])
   @ApiProperty({ 
     description: 'Type of user account',
     enum: ['individual', 'business'],
     example: 'individual'
   })
   userType: 'individual' | 'business';
-
-  @IsString()
-  @IsNotEmpty()
-  @ApiProperty({ 
-    description: 'Girasol user identifier kept for backward compatibility; the idempotent Lirium reference is derived from accountId',
-    example: 'user123'
-  })
-  userId: string;
 
   @IsEmail()
   @IsNotEmpty()
@@ -115,13 +149,14 @@ export class AddWalletRequestDto {
   })
   nationalIdCountryIso2: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @Transform(({ value }) => normalizeNationalIdType(value), { toClassOnly: true })
+  @IsIn(LIRIUM_NATIONAL_ID_TYPES)
   @ApiProperty({ 
-    description: 'Client-facing national ID type label; the current Lirium mapping normalizes this value to national_id',
+    description: 'National ID type supported by Lirium. Common aliases like cedula are normalized to national_id.',
+    enum: LIRIUM_NATIONAL_ID_TYPES,
     example: 'national_id'
   })
-  nationalIdType: string;
+  nationalIdType: LiriumNationalIdType;
 
   @IsString()
   @IsNotEmpty()
@@ -225,22 +260,22 @@ export class AddWalletRequestDto {
 }
 export class AddWalletResponseDto {
   @ApiProperty({ 
-    description: 'User email address',
-    example: 'user@example.com'
+    description: 'Lirium customer identifier',
+    example: '2fd88ea196c746238cad2a14ff418a61'
   })
-  email: string;
+  id: string;
 
   @ApiProperty({ 
-    description: 'Legacy response field that currently contains the Lirium customer ID',
-    example: '2fd88ea196c746238cad2a14ff418a61'
+    description: 'Girasol account ID used as the customer reference_id in Lirium',
+    example: 'acc123'
   })
   accountId: string;
 
   @ApiProperty({ 
-    description: 'Legacy response field that currently contains the same Lirium customer ID',
-    example: '2fd88ea196c746238cad2a14ff418a61'
+    description: 'User email address',
+    example: 'user@example.com'
   })
-  userId: string;
+  email: string;
 
   @ApiProperty({ 
     description: 'Array of wallet addresses',
@@ -264,6 +299,10 @@ export class AddWalletResponseDto {
   })
   provisionStatus?: WalletProvisionStatus;
 
+}
+
+export class WalletAddressesResponseDto {
+  address: walletDto[];
 }
 
 export class WalletResponseEnvelopeDto {
