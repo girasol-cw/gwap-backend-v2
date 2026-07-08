@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { LiriumKycServiceAbstract } from "../interfaces/lirium-kyc.service.abstract";
 import { HttpWrapperConfig, HttpWrapperService } from "./http-wrapper.service";
 import { LiriumFileDto, LiriumFileType } from "../dto/lirium-file.dto";
@@ -7,6 +7,7 @@ import FormData from 'form-data';
 
 @Injectable()
 export class LiriumKycService extends LiriumKycServiceAbstract {
+    private readonly logger = new Logger(LiriumKycService.name);
 
     private readonly URL_KYC = '/customers/{0}/documents';
     constructor(private readonly httpService: HttpWrapperService, private readonly databaseService: DatabaseService) {
@@ -37,7 +38,18 @@ export class LiriumKycService extends LiriumKycServiceAbstract {
             }
         };
 
-        await this.httpService.post(this.URL_KYC.replace('{0}', userId), formData, configRequest);
+        const response = await this.httpService.post(
+            this.URL_KYC.replace('{0}', userId),
+            formData,
+            configRequest,
+        );
+
+        this.logger.log(
+            `Lirium KYC upload response for account ${file.accountId}: ${JSON.stringify({
+                status: response.status,
+                data: response.data ?? null,
+            })}`,
+        );
     }
 
     private async getUserByAccountId(accountId: string, companyId: string): Promise<string> {
