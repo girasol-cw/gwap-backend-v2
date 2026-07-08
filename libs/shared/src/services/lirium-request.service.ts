@@ -269,6 +269,9 @@ export class LiriumRequestService extends LiriumRequestServiceAbstract {
       return this.attachSerializedCustomer(response.data as LiriumRequestDto, customerId);
     } catch (error) {
       if (error instanceof HttpException && [404, 405, 501].includes(error.getStatus())) {
+        this.logger.warn(
+          `PUT /customers/${customerId} returned ${error.getStatus()}, retrying with PATCH`,
+        );
         const response = await this.httpService.patch<any>(
           `${process.env.LIRIUM_API_URL}/customers/${customerId}`,
           requestBody,

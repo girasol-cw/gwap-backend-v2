@@ -247,7 +247,7 @@ export class HttpWrapperService {
         headers,
       };
 
-      // this.logger.log(`${config.method?.toUpperCase()} ${config.url}`);
+      this.logger.log(`${config.method?.toUpperCase()} ${config.url}`);
       const response: AxiosResponse<T> = await firstValueFrom(
         this.httpService.request<T>(requestConfig),
       );
@@ -339,8 +339,6 @@ export class HttpWrapperService {
     method: string,
     url: string,
   ): HttpWrapperErrorResponse {
-    this.logger.error(`${method} ${url} failed:`, error.message);
-
     // Check if it's an Axios error with response data
     if (error instanceof AxiosError && error.response?.data) {
       const responseData = error.response.data;
