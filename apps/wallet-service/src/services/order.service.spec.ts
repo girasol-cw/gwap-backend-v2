@@ -334,6 +334,20 @@ describe('OrderService', () => {
       expect(result.to.amount).toBe('0.00200000');
     });
 
+    it('returns valid quote when exchange rates come wrapped in exchange_rates', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue({
+        exchange_rates: [
+          { currency: 'BTC', bid: '0.00002', ask: '0.000021' },
+        ],
+      });
+
+      const result = await service.getSwapQuote({
+        asset: { currency: 'USDC', amount: '100' },
+        toCurrency: 'BTC',
+      });
+      expect(result.to.amount).toBe('0.00200000');
+    });
+
     it('throws when source and destination currency are equal', async () => {
       (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue([]);
       await expect(
@@ -383,6 +397,23 @@ describe('OrderService', () => {
           toCurrency: 'BTC',
         }),
       ).rejects.toThrow(new BadRequestException('Invalid exchange rate'));
+    });
+
+    it('throws when exchange rates response shape is invalid', async () => {
+      (mockLiriumService.getExchangeRates as jest.Mock).mockResolvedValue({
+        exchange_rates: {
+          currency: 'BTC',
+          bid: '0.00002',
+          ask: '0.000021',
+        },
+      });
+
+      await expect(
+        service.getSwapQuote({
+          asset: { currency: 'USDC', amount: '100' },
+          toCurrency: 'BTC',
+        }),
+      ).rejects.toThrow(new BadRequestException('Invalid exchange rates response'));
     });
   });
 });

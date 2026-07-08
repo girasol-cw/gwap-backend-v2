@@ -171,8 +171,9 @@ export class OrderService {
   async getSwapQuote(
     body: SwapQuoteRequestDto,
   ): Promise<SwapQuoteResponseDto> {
-    const rates: LiriumExchangeRateDto[] =
-      await this.liriumService.getExchangeRates();
+    const rates: LiriumExchangeRateDto[] = this.normalizeExchangeRates(
+      await this.liriumService.getExchangeRates(),
+    );
 
     if (!body.asset) {
       throw new BadRequestException('Source asset is required');
@@ -221,6 +222,23 @@ export class OrderService {
       },
       rate: rawRate,
     };
+  }
+
+  private normalizeExchangeRates(payload: unknown): LiriumExchangeRateDto[] {
+    if (Array.isArray(payload)) {
+      return payload as LiriumExchangeRateDto[];
+    }
+
+    if (payload && typeof payload === 'object') {
+      const candidate = payload as Record<string, unknown>;
+      const wrappedRates = candidate.exchange_rates ?? candidate.rates ?? candidate.data;
+
+      if (Array.isArray(wrappedRates)) {
+        return wrappedRates as LiriumExchangeRateDto[];
+      }
+    }
+
+    throw new BadRequestException('Invalid exchange rates response');
   }
 
   private async getOrder(orderId: string, companyId: string): Promise<OrderModel> {
