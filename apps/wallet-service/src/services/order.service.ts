@@ -224,21 +224,83 @@ export class OrderService {
     };
   }
 
-  private normalizeExchangeRates(payload: unknown): LiriumExchangeRateDto[] {
+  private normalizeExchangeRates(
+    payload: unknown,
+    depth: number = 0,
+  ): LiriumExchangeRateDto[] {
     if (Array.isArray(payload)) {
       return payload as LiriumExchangeRateDto[];
     }
 
-    if (payload && typeof payload === 'object') {
+    if (payload && typeof payload === 'object' && depth < 3) {
       const candidate = payload as Record<string, unknown>;
-      const wrappedRates = candidate.exchange_rates ?? candidate.rates ?? candidate.data;
+      const wrappedRates = [candidate.exchange_rates, candidate.rates, candidate.data];
 
-      if (Array.isArray(wrappedRates)) {
-        return wrappedRates as LiriumExchangeRateDto[];
+      for (const value of wrappedRates) {
+        if (Array.isArray(value)) {
+          return value as LiriumExchangeRateDto[];
+        }
+
+        if (value && typeof value === 'object') {
+          try {
+            return this.normalizeExchangeRates(value, depth + 1);
+          } catch (error) {
+            if (!(error instanceof BadRequestException)) {
+              throw error;
+            }
+          }
+        }
       }
     }
 
+    this.logger.warn(
+      `Unexpected exchange rates response shape: ${JSON.stringify(
+        this.summarizeExchangeRatesPayload(payload),
+      )}`,
+    );
     throw new BadRequestException('Invalid exchange rates response');
+  }
+
+  private summarizeExchangeRatesPayload(payload: unknown): Record<string, unknown> {
+    if (Array.isArray(payload)) {
+      return {
+        type: 'array',
+        length: payload.length,
+        firstItemKeys:
+          payload.length > 0 && payload[0] && typeof payload[0] === 'object'
+            ? Object.keys(payload[0] as Record<string, unknown>).slice(0, 10)
+            : [],
+      };
+    }
+
+    if (payload && typeof payload === 'object') {
+      const candidate = payload as Record<string, unknown>;
+
+      return {
+        type: 'object',
+        keys: Object.keys(candidate).slice(0, 10),
+        exchangeRatesType: this.describePayloadType(candidate.exchange_rates),
+        ratesType: this.describePayloadType(candidate.rates),
+        dataType: this.describePayloadType(candidate.data),
+      };
+    }
+
+    return {
+      type: this.describePayloadType(payload),
+      value: payload ?? null,
+    };
+  }
+
+  private describePayloadType(value: unknown): string {
+    if (Array.isArray(value)) {
+      return 'array';
+    }
+
+    if (value === null) {
+      return 'null';
+    }
+
+    return typeof value;
   }
 
   private async getOrder(orderId: string, companyId: string): Promise<OrderModel> {
